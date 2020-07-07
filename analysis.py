@@ -36,6 +36,7 @@ class Text(object):
         self.tokens = nltk.word_tokenize(self.soup.text)
         # TODO: include next steps in the pipeline
         # TODO: add more things based on what you want to look at
+        # TODO: make sure the spaces 
         
         
     def get_the_text(self):

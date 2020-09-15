@@ -7,7 +7,10 @@ class Corpus(object):
         # self.thing = something
         self.corpus_dir = 'blogs/'
         self.filenames = self.all_files()
+        self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.create_texts()
+        # TODO: get a subset of the posts for a particular blog
+        # TODO: implement a metadata csv file
         
     def all_files(self):
         """given the corpus_dir, return the filenames in it"""
@@ -20,20 +23,22 @@ class Corpus(object):
                     path = os.path.join(root, fn)
                     texts.append(path)
         return texts
-    
+
     def create_texts(self):
-        return [Text(filename) for filename in self.filenames]
+        return [Text(filename, self.stopwords) for filename in self.filenames]
 
 class Text(object):
-    def __init__(self, fn):
+    def __init__(self, fn, stopwords):
         # self.thing = something that gets you that thing
         self.filename = fn
+        # TODO: self.blog = the actual blog the post comes from
         self.raw_html = self.get_the_text()
         self.soup = BeautifulSoup(self.raw_html, 'lxml')
         self.timestamp = self.soup.time.text
         self.p_tags = self.soup.find_all('p')
         self.text = ' '.join([tag.text for tag in self.p_tags])
         self.tokens = nltk.word_tokenize(self.soup.text)
+        self.stopwords = stopwords
         # TODO: include next steps in the pipeline
         # TODO: add more things based on what you want to look at
         # TODO: make sure the spaces 
@@ -71,6 +76,7 @@ if __name__ == "__main__":
 # >>> import importlib # only has to be done once
 # >>> importlib.reload(analysis)
 # >>> corpus = analysis.Corpus() # re-instantiate the class
+# >>> corpus[0].raw_text # to get the raw text for text number 1
 
 
 

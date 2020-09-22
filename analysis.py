@@ -39,11 +39,31 @@ class Text(object):
         self.text = ' '.join([tag.text for tag in self.p_tags])
         self.tokens = nltk.word_tokenize(self.soup.text)
         self.stopwords = stopwords
+        self.spongebob_meme_counts = self.count_spongebob()
         # TODO: include next steps in the pipeline
         # TODO: add more things based on what you want to look at
         # TODO: make sure the spaces 
-        
-        
+        # TODO: tildes - ~word word~ for ex. ~social justice~. or a ~ on one side, either front or back. probably interested in the whole post or the whole sentence. also interested in tilde counts
+        # TODO: quotations - quotation marks (just in text body though). what's inside of the quotation marks
+        # TODO: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
+        # TODO: dialogues - letter, colon, space
+        # ex - person a: blah blah blah
+        # ex - person b: blah blah blah
+        # TODO frequency distribution for the text. and then some way of getting word counts dynamically.
+        # key words: pure, wholesome, “social justice”, good, moral, ethic, time, timeline, multiverse, change, progress, nasty, gross, normal, freaks, weirdos, uncomfy, y’all, tumblr, valid, invalid, rights, “no rights”
+        # text.fq - our frequency distribution
+        # text.fq['multiverse']
+        # corpus.fq_counts = [text.fq[word] for text in corpus.texts]
+        # TODO Repeated phrases? Possible to look for most common 3, 5, and 7 words in a row?
+        # text.bigrams()
+        # ngrams larger than three https://stackoverflow.com/questions/32441605/generating-ngrams-unigrams-bigrams-etc-from-a-large-corpus-of-txt-files-and-t
+        # TODO: reading for particular styles - reading for youth voices, innocent youth, old person standard English, academic. intermingling the different registers within a single post
+        # two approaches -  machine learning way. maybe at the sentence level or the paragraph level. topic modeling?
+    
+    def count_spongebob(self):
+        """Counts the instances of the spongebob meme in a post"""
+        pass
+                
     def get_the_text(self):
         with open(self.filename, 'r') as file_in:
             return file_in.read()

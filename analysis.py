@@ -2,6 +2,7 @@ import os
 from bs4 import BeautifulSoup
 import nltk
 import re
+from nltk.util import ngrams
 
 class Corpus(object):
     def __init__(self):
@@ -43,13 +44,20 @@ class Text(object):
         self.tokens = nltk.word_tokenize(self.text)
         self.stopwords = stopwords
         self.freq_dist = nltk.FreqDist(self.tokens)
-        
+        # TODO: can lexical diversity be more than 1? 
+        self.lexical_diversity = len(self.tokens)/len(list(set(self.tokens)))
+        # all words divided by unique words
+    def collocations(self, n):
+        """take a text and get the most common phrases of length n. for example, text.collocations(3) gives you most common phrases 3 words long"""
+        return nltk.FreqDist(list(ngrams(self.tokens, n)))
+
     def find_note_count(self):
         target = self.soup.footer.text.split('—')[1]
         return int(re.search("[0-9]+", target).group())
-
+        # TODO: make sure we get rid of punctuation when we want to and keep it when we do.
         # get rid of these characters in the note text - '¶', '●', '⬀', '⬈'
-
+        # TODO: track lexical variance
+        # TODO: integrate metadata csv
         # TODO: how do we throw away video? look for a pre tag if it exists throw it away?
         # TODO: include next steps in the pipeline
         # TODO: make sure the spaces 

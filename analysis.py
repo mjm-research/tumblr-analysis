@@ -3,17 +3,20 @@ from bs4 import BeautifulSoup
 import nltk
 import re
 from nltk.util import ngrams
+import pandas as pd
 
 class Corpus(object):
     def __init__(self):
         # self.thing = something
         self.corpus_dir = 'blogs/'
         self.filenames = self.all_files()
+        self.metadata = pd.read_csv('metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.create_texts()
         # TODO: get a subset of the posts for a particular blog
         # TODO: implement a metadata csv file
-        
+            
+    
     def all_files(self):
         """given the corpus_dir, return the filenames in it"""
         texts = []
@@ -27,13 +30,16 @@ class Corpus(object):
         return texts
 
     def create_texts(self):
-        return [Text(filename, self.stopwords) for filename in self.filenames]
+        return [Text(filename, self.stopwords, self.metadata) for filename in self.filenames]
 
 class Text(object):
-    def __init__(self, fn, stopwords):
+    def __init__(self, fn, stopwords, metadata):
         # self.thing = something that gets you that thing
         self.filename = fn
-        # TODO: self.blog = the actual blog the post comes from
+        self.blog = self.filename.split('/')[1]
+        self.post_metadata = metadata.loc[metadata['blog'] == self.blog]
+        # TODO: fill in the metadata based on the stuff in the spreadsheet
+        # self.composite = self.post_metadata['composite']
         self.raw_html = self.get_the_text()
         self.soup = BeautifulSoup(self.raw_html, 'lxml')
         self.timestamp = self.soup.time.text
@@ -57,7 +63,6 @@ class Text(object):
         # TODO: make sure we get rid of punctuation when we want to and keep it when we do.
         # get rid of these characters in the note text - '¶', '●', '⬀', '⬈'
         # TODO: track lexical variance
-        # TODO: integrate metadata csv
         # TODO: how do we throw away video? look for a pre tag if it exists throw it away?
         # TODO: include next steps in the pipeline
         # TODO: make sure the spaces 
@@ -72,9 +77,6 @@ class Text(object):
         # text.fq - our frequency distribution
         # text.fq['multiverse']
         # corpus.fq_counts = [text.fq[word] for text in corpus.texts]
-        # TODO Repeated phrases? Possible to look for most common 3, 5, and 7 words in a row?
-        # text.bigrams()
-        # ngrams larger than three https://stackoverflow.com/questions/32441605/generating-ngrams-unigrams-bigrams-etc-from-a-large-corpus-of-txt-files-and-t
         # TODO: reading for particular styles - reading for youth voices, innocent youth, old person standard English, academic. intermingling the different registers within a single post
         # two approaches -  machine learning way. maybe at the sentence level or the paragraph level. topic modeling?
     

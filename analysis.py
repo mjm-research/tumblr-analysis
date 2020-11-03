@@ -13,9 +13,13 @@ class Corpus(object):
         self.metadata = pd.read_csv('metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.create_texts()
+        self.tilde_posts = [text for text in self.texts if text.contains_tilde]
         # TODO: get a subset of the posts for a particular blog
         # TODO: implement a metadata csv file
             
+    def get_particular_blog(self, search_term):
+        # TODO - make sure this works when we have metadata
+        return [text for text in self.texts if text.post_metadata['blog'] == search_term]
     
     def all_files(self):
         """given the corpus_dir, return the filenames in it"""
@@ -50,9 +54,33 @@ class Text(object):
         self.tokens = nltk.word_tokenize(self.text)
         self.stopwords = stopwords
         self.freq_dist = nltk.FreqDist(self.tokens)
+        self.contains_tilde = self.tilde_true()
+        self.quoted_material = self.find_quoted_material()
+        if self.contains_tilde:
+            # TODO: see if this causes problems downstream. if it does, you can just take the if statement out.
+            self.tilde_paragraphs = [p.text for p in self.p_tags if '~' in p.text]
+            self.tilde_counts = self.count_tildes()
         # TODO: can lexical diversity be more than 1? 
         self.lexical_diversity = len(self.tokens)/len(list(set(self.tokens)))
         # all words divided by unique words
+    def find_quoted_material(self):
+        # TODO: START HERE NEXT TIME
+        pass
+    
+    def count_tildes(self):
+        beginning_tilde_counts = len([token for token in self.tokens if token.startswith('~')])
+        end_tilde_counts = len([token for token in self.tokens if token.endswith('~')])
+        return (beginning_tilde_counts, end_tilde_counts)
+    
+    def tilde_true(self):
+        # TODO: maybe refactor
+        result = False
+        for token in self.tokens:
+            if '~' in token:
+                result = True
+                break
+        return result
+            
     def collocations(self, n):
         """take a text and get the most common phrases of length n. for example, text.collocations(3) gives you most common phrases 3 words long"""
         return nltk.FreqDist(list(ngrams(self.tokens, n)))
@@ -60,14 +88,15 @@ class Text(object):
     def find_note_count(self):
         target = self.soup.footer.text.split('—')[1]
         return int(re.search("[0-9]+", target).group())
+
         # TODO: make sure we get rid of punctuation when we want to and keep it when we do.
         # get rid of these characters in the note text - '¶', '●', '⬀', '⬈'
         # TODO: track lexical variance
         # TODO: how do we throw away video? look for a pre tag if it exists throw it away?
         # TODO: include next steps in the pipeline
         # TODO: make sure the spaces 
-        # TODO: tildes - ~word word~ for ex. ~social justice~. or a ~ on one side, either front or back. probably interested in the whole post or the whole sentence. also interested in tilde counts
         # TODO: quotations - quotation marks (just in text body though). what's inside of the quotation marks
+        # TODO: Why is " turning into `` by the tokenizer?
         # TODO: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
         # TODO: dialogues - letter, colon, space
         # ex - person a: blah blah blah

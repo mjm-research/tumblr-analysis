@@ -15,10 +15,13 @@ class Corpus(object):
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.sort_by_date(self.create_texts())
         self.tilde_posts = [text for text in self.texts if text.contains_tilde]
-        # TODO: get a subset of the posts for a particular blog or other types of metadata
-        # TODO: order the posts by date
-        # TODO: implement a metadata csv file
+        # TODO: DISCUSS get a subset of the posts for a particular blog or other types of metadata
         # interested across time and across blogs
+    
+    def get_subset_by_metadata(self, key, value):
+        """sub_corpus = this_corpus.get_subset_by_metadata('blog','ghost')"""
+        return [text for text in self.texts if getattr(text, key) == value]
+        
     def find_text(self, fn):
         for text in self.texts:
             if text.filename.split('/')[-1] == fn:

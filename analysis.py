@@ -4,6 +4,7 @@ import nltk
 import re
 from nltk.util import ngrams
 import pandas as pd
+from datetime import datetime
 
 class Corpus(object):
     def __init__(self):
@@ -12,10 +13,25 @@ class Corpus(object):
         self.filenames = self.all_files()
         self.metadata = pd.read_csv('metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
-        self.texts = self.create_texts()
+        self.texts = self.sort_by_date(self.create_texts())
         self.tilde_posts = [text for text in self.texts if text.contains_tilde]
-        # TODO: get a subset of the posts for a particular blog
+        # TODO: get a subset of the posts for a particular blog or other types of metadata
+        # TODO: order the posts by date
         # TODO: implement a metadata csv file
+        # interested across time and across blogs
+    def find_text(self, fn):
+        for text in self.texts:
+            if text.filename.split('/')[-1] == fn:
+                return text
+    
+    def function_name(parameters_for_the_function):
+        print('the stuff here')
+        return none    
+        
+    def sort_by_date(self, texts):
+        # Start here - convert the timestamp into datetime objects and sort off date.
+        texts.sort(key=lambda x: x.timestamp)
+        return texts
             
     def get_particular_blog(self, search_term):
         # TODO - make sure this works when we have metadata
@@ -46,7 +62,8 @@ class Text(object):
         # self.composite = self.post_metadata['composite']
         self.raw_html = self.get_the_text()
         self.soup = BeautifulSoup(self.raw_html, 'lxml')
-        self.timestamp = self.soup.time.text
+        self.time_as_string =self.soup.time.text
+        self.timestamp = datetime.strptime(self.soup.time.text,'%m/%d/%Y %H:%M:%S %p')
         self.p_tags = self.soup.find_all('p')
         self.text = ' '.join([tag.text for tag in self.p_tags])
         self.post_tags = [tag.text for tag in self.soup.find_all('a')][:-1]
@@ -89,6 +106,7 @@ class Text(object):
         target = self.soup.footer.text.split('—')[1]
         return int(re.search("[0-9]+", target).group())
 
+        # TODO: NEXT TIME START WITH - Michelle's work from Thanksgiving and then maybe work with the metadata.
         # TODO: make sure we get rid of punctuation when we want to and keep it when we do.
         # get rid of these characters in the note text - '¶', '●', '⬀', '⬈'
         # TODO: track lexical variance

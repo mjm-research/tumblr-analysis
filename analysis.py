@@ -59,6 +59,9 @@ class Text(object):
         self.blog = self.filename.split('/')[1]
         self.post_metadata = metadata.loc[metadata['blog'] == self.blog]
         # TODO: fill in the metadata based on the stuff in the spreadsheet
+        # Note: this will dynamically assign attributes based on your metadata.
+        for item in self.post_metadata:
+            setattr(self, item, self.post_metadata[item].iloc[0])
         # self.composite = self.post_metadata['composite']
         self.raw_html = self.get_the_text()
         self.soup = BeautifulSoup(self.raw_html, 'lxml')

@@ -86,6 +86,7 @@ class Text(object):
         # TODO: can lexical diversity be more than 1? 
         self.lexical_diversity = len(self.tokens)/len(list(set(self.tokens)))
         # all words divided by unique words
+        self.irreg_cap = self.find_irreg_cap()
     def find_quoted_material(self):
         # TODO: START HERE NEXT TIME
         pass
@@ -103,7 +104,13 @@ class Text(object):
                 result = True
                 break
         return result
-            
+    
+    def find_irreg_cap(self):
+	    for token in self.tokens:
+		    if token[1:].isupper()
+		        result = True
+	    return result
+    
     def collocations(self, n):
         """take a text and get the most common phrases of length n. for example, text.collocations(3) gives you most common phrases 3 words long"""
         return nltk.FreqDist(list(ngrams(self.tokens, n)))

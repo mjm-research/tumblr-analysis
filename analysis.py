@@ -15,13 +15,12 @@ class Corpus(object):
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.sort_by_date(self.create_texts())
         self.tilde_posts = [text for text in self.texts if text.contains_tilde]
-        # TODO: DISCUSS get a subset of the posts for a particular blog or other types of metadata
         # interested across time and across blogs
     
     def get_subset_by_metadata(self, key, value):
         """sub_corpus = this_corpus.get_subset_by_metadata('blog','ghost')"""
         return [text for text in self.texts if getattr(text, key) == value]
-        
+
     def find_text(self, fn):
         for text in self.texts:
             if text.filename.split('/')[-1] == fn:
@@ -32,7 +31,6 @@ class Corpus(object):
         return none    
         
     def sort_by_date(self, texts):
-        # Start here - convert the timestamp into datetime objects and sort off date.
         texts.sort(key=lambda x: x.timestamp)
         return texts
             
@@ -65,7 +63,6 @@ class Text(object):
         # Note: this will dynamically assign attributes based on your metadata.
         for item in self.post_metadata:
             setattr(self, item, self.post_metadata[item].iloc[0])
-        # self.composite = self.post_metadata['composite']
         self.raw_html = self.get_the_text()
         self.soup = BeautifulSoup(self.raw_html, 'lxml')
         self.time_as_string =self.soup.time.text
@@ -87,6 +84,9 @@ class Text(object):
         self.lexical_diversity = len(self.tokens)/len(list(set(self.tokens)))
         # all words divided by unique words
         self.irreg_cap = self.find_irreg_cap()
+        if self.irreg_cap:
+            # TO DO HERE - MAKE IT IGNORE THE AM/PM BIT HERE AS WELL
+            self.irreg_cap_paragraphs = self.find_irreg_cap_paragraphs()
     def find_quoted_material(self):
         # TODO: START HERE NEXT TIME
         pass
@@ -106,10 +106,30 @@ class Text(object):
         return result
     
     def find_irreg_cap(self):
-	    for token in self.tokens:
-		    if token[1:].isupper()
-		        result = True
-	    return result
+        result = False
+        for token in self.tokens:
+            if token[1:].isupper() and token not in ['AM', 'PM']:
+                result = True
+                break
+        return result
+        
+    def find_irreg_cap_paragraphs(self):
+        p_results = []
+        for p in self.p_tags:
+            for token in nltk.word_tokenize(p.text):
+                if token[1:].isupper():
+                    p_results.append(p)
+        return p_results
+    
+    # #TODO: get this working for DRY purposes
+    # get_p_bits("token[1:].isupper()")
+    # get_p_bits(self, expression):
+    #             p_results = []
+    #             for p in self.p_tags:
+    #                 for token in nltk.word_tokenize(p.text):
+    #                     if eval(expression):
+    #                         p_results.append(p)
+    #             return p_results
     
     def collocations(self, n):
         """take a text and get the most common phrases of length n. for example, text.collocations(3) gives you most common phrases 3 words long"""

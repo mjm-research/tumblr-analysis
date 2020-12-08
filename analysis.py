@@ -5,6 +5,7 @@ import re
 from nltk.util import ngrams
 import pandas as pd
 from datetime import datetime
+import re
 
 class Corpus(object):
     def __init__(self):
@@ -59,8 +60,7 @@ class Text(object):
         self.filename = fn
         self.blog = self.filename.split('/')[1]
         self.post_metadata = metadata.loc[metadata['blog'] == self.blog]
-        # TODO: fill in the metadata based on the stuff in the spreadsheet
-        # Note: this will dynamically assign attributes based on your metadata.
+        # this will dynamically assign attributes based on your metadata.
         for item in self.post_metadata:
             setattr(self, item, self.post_metadata[item].iloc[0])
         self.raw_html = self.get_the_text()
@@ -85,12 +85,27 @@ class Text(object):
         # all words divided by unique words
         self.irreg_cap = self.find_irreg_cap()
         if self.irreg_cap:
-            # TO DO HERE - MAKE IT IGNORE THE AM/PM BIT HERE AS WELL
-            self.irreg_cap_paragraphs = self.find_irreg_cap_paragraphs()
+            self.irreg_cap_paragraphs = self.get_paragraphs_with_filter("token[1:].isupper() and token not in ['AM', 'PM']")
+        self.dialogue = self.find_dialogue()
+        # example of how to use the filter function:
+        # self.paras_starting_with_cap_a = self.get_paragraphs_with_filter("token[0] == 'A'")
     def find_quoted_material(self):
+        # use regex101.com to help build the regex tester
+        # TODO: Michelle might be able to do this
         # TODO: START HERE NEXT TIME
+        # TODO: quotations - quotation marks (just in text body though). what's inside of the quotation marks
+
         pass
     
+    def find_dialogue(self):
+        search = r'\w+: \w+'
+        p_result = []
+        for p in self.p_tags:
+            if re.findall(search, p.text):
+                p_result.append(p.text)
+        
+        return p_result
+        
     def count_tildes(self):
         beginning_tilde_counts = len([token for token in self.tokens if token.startswith('~')])
         end_tilde_counts = len([token for token in self.tokens if token.endswith('~')])
@@ -113,24 +128,19 @@ class Text(object):
                 break
         return result
         
-    def find_irreg_cap_paragraphs(self):
+    def get_paragraphs_with_filter(self, expression):
+        """call this on a text to get paragraphs using a particular filter on the interior tokens. for example -
+        self.get_paragraphs_with_filter("token[1:].isupper()")
+        self.get_paragraphs_with_filter("token[0] == 'A'")
+        returns all the spongebob paragraphs (they will contain tokens where an interior character is capitalized)
+        """
         p_results = []
         for p in self.p_tags:
             for token in nltk.word_tokenize(p.text):
-                if token[1:].isupper():
+                if eval(expression):
                     p_results.append(p)
         return p_results
-    
-    # #TODO: get this working for DRY purposes
-    # get_p_bits("token[1:].isupper()")
-    # get_p_bits(self, expression):
-    #             p_results = []
-    #             for p in self.p_tags:
-    #                 for token in nltk.word_tokenize(p.text):
-    #                     if eval(expression):
-    #                         p_results.append(p)
-    #             return p_results
-    
+
     def collocations(self, n):
         """take a text and get the most common phrases of length n. for example, text.collocations(3) gives you most common phrases 3 words long"""
         return nltk.FreqDist(list(ngrams(self.tokens, n)))
@@ -139,19 +149,15 @@ class Text(object):
         target = self.soup.footer.text.split('—')[1]
         return int(re.search("[0-9]+", target).group())
 
-        # TODO: NEXT TIME START WITH - Michelle's work from Thanksgiving and then maybe work with the metadata.
+
+        # TODO: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
         # TODO: make sure we get rid of punctuation when we want to and keep it when we do.
         # get rid of these characters in the note text - '¶', '●', '⬀', '⬈'
         # TODO: track lexical variance
         # TODO: how do we throw away video? look for a pre tag if it exists throw it away?
         # TODO: include next steps in the pipeline
         # TODO: make sure the spaces 
-        # TODO: quotations - quotation marks (just in text body though). what's inside of the quotation marks
         # TODO: Why is " turning into `` by the tokenizer?
-        # TODO: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
-        # TODO: dialogues - letter, colon, space
-        # ex - person a: blah blah blah
-        # ex - person b: blah blah blah
         # TODO some way of getting word counts dynamically from the freq_dist
         # key words: pure, wholesome, “social justice”, good, moral, ethic, time, timeline, multiverse, change, progress, nasty, gross, normal, freaks, weirdos, uncomfy, y’all, tumblr, valid, invalid, rights, “no rights”
         # text.fq - our frequency distribution
@@ -195,6 +201,18 @@ if __name__ == "__main__":
 # >>> corpus = analysis.Corpus() # re-instantiate the class
 # >>> corpus[0].raw_text # to get the raw text for text number 1
 
+# Use the attributes in conjunction with each other to find things you care about and where to look for them. For example:
+# >>> for text in corpus.texts:
+# ...     if text.dialogue:
+# ...             print(text.dialogue)
+# ...             print(text.filename)
+# ...             print(text.time_as_string)
 
 
+#   (to pull out just the test file in python)
+# import analysis
+# this_corpus = analysis.Corpus()
+# test_corpus = this_corpus.get_subset_by_metadata('blog','test')
 
+
+# TODO: in may or june try running this on the whole corpus? in addition to what that remains.

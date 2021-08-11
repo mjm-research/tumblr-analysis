@@ -6,6 +6,7 @@ from nltk.util import ngrams
 import pandas as pd
 from datetime import datetime
 import re
+import matplotlib.pyplot as plt
 
 class Corpus(object):
     def __init__(self):
@@ -81,7 +82,7 @@ class Text(object):
             self.tilde_paragraphs = [p.text for p in self.p_tags if '~' in p.text]
             self.tilde_counts = self.count_tildes()
         # TODO: can lexical diversity be more than 1? 
-        self.lexical_diversity = len(self.tokens)/len(list(set(self.tokens)))
+        self.lexical_diversity = len(set(self.tokens))/len(self.tokens)
         # all words divided by unique words
         self.irreg_cap = self.find_irreg_cap()
         if self.irreg_cap:
@@ -171,21 +172,48 @@ class Text(object):
         with open(self.filename, 'r') as file_in:
             return file_in.read()
          
-        
     # with open(fn, 'r') as file_in:
     #     #going to open each file to READ, but idk what fin is
     #     raw_html = fin.read()
-        
+    
+def graph(list_of_dataframes):
+    """given a list of things to graph, graph them"""
+    plt.style.use('seaborn-whitegrid')
+    fig = plt.figure()
+    ax = plt.axes()
+    for dataframe in list_of_dataframes:
+        # TODO add specific colors
+        dataframe = regularize_data_frame(dataframe)
+        dates = [date.isoformat() for date in dataframe['DATE']]
+        ax.plot(dates,dataframe['DATA'].values)
+    plt.show()
+     # plot the lexical diversity for each date
+
+def lexical_diversity_over_time(texts):
+    """Takes the lexical diversity for the corpus of posts, averages it per day(though you would specify to be larger amounts in the second to last line) then returns a dataframe of the results"""
+    df = pd.DataFrame()
+    df['DATA'] = [text.lexical_diversity for text in texts]
+    df['DATE'] = [text.timestamp.date() for text in texts]
+    return df
+    
+def regularize_data_frame(df):
+    unique_dates = set(df.DATE.values)
+    converted_df = pd.DataFrame()
+    converted_df['DATE'] = [date for date in unique_dates]
+    converted_df['DATA'] = [df[df['DATE'] == date]['DATA'].mean() for date in unique_dates]
+    return converted_df.sort_values(by=['DATE'])
+    
 def main():
     # if i run the file from the terminal a la $ python3 analysis.py
     # this is what will run.
-    print("hey what's up")
-
+    corpus = Corpus()
+    df = lexical_diversity_over_time(corpus.texts)
+    # x_axis, y_axis = lexical_diversity_over_time(corpus.texts)['DATE'],lexical_diversity_over_time(corpus.texts)['LD']
+    graph([df])
 
 if __name__ == "__main__":
     main()
     
-    soup = BeautifulSoup(html)
     
     
 # >>> corpus.posts # give all your posts (will be a list)
@@ -215,4 +243,12 @@ if __name__ == "__main__":
 # test_corpus = this_corpus.get_subset_by_metadata('blog','test')
 
 
-# TODO: in may or june try running this on the whole corpus? in addition to what that remains.
+# TODO: throw away video posts
+# TODO: Get metadata csv with particular categories and get it working on each of those
+# TODO: colors and legend for graph
+# TODO: needs a hair more refactoring, but right now it's trying to set up a pipeline 
+# the graph function takes a list of categories
+# from those categories, it generates a sublist of posts
+# each of those gets turned into a dataframe of results based on the thing you're interested in 
+# gets reconciled back into a graph
+# TODO: that reconciliation process might need a bit of massaging

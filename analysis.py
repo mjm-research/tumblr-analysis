@@ -16,7 +16,65 @@ class Corpus(object):
         self.metadata = pd.read_csv('metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.sort_by_date(self.create_texts())
-        self.tilde_posts = [text for text in self.texts if text.contains_tilde]
+        # self.tilde_posts = [text for text in self.texts if text.contains_tilde]
+        # data_to_graph can take a general search term (in which case it adds the raw word counts, though we could make it average) or one of these specialized requests: ['LD', 'SB']
+        self.query = 'SB'
+        self.data_to_graph = self.get_data_over_time(self.texts, self.query)
+        self.filenames_by_query = self.get_filenames_by_query(self.query)
+        # Note - you eventually want to insert a segment that will 
+        self.graph(self.data_to_graph)
+    
+    def get_filenames_by_query(self, query):
+        if query == 'SB':
+            return [text.filename for text in self.texts if text.irreg_cap]
+        elif query == '~':
+            return [text.filename for text in self.texts if text.contains_tilde]
+        else:
+            return [text.filename for text in self.texts if text.freq_dist[query]]
+    
+    def graph(self, dataframe):
+        """given a dataframe to graph, graph them"""
+        plt.style.use('seaborn-whitegrid')
+        fig = plt.figure()
+        ax = plt.axes()
+        # TODO slice the dataframe up based on category
+        # TODO add specific colors basd
+        ax.plot(dataframe['DATE'],dataframe['DATA'].values)
+        plt.show()
+         # plot the lexical diversity for each date
+
+    def get_data_over_time(self, texts, query):
+        df = pd.DataFrame()
+        # TODO: add a particular category to segment according to here
+        df['CATEGORY'] = [text.blog for text in texts]
+        df['DATE'] = [text.timestamp.strftime('%Y-%m') for text in texts]
+        if query == 'LD':
+            df['DATA'] = [text.lexical_diversity for text in texts]
+            df = self.regularize_data_frame(df, average=True)
+        elif query == '~':
+            df['DATA'] = [text.contains_tilde for text in texts]
+            df = self.regularize_data_frame(df, average=False)
+        elif query == 'SB':
+            df['DATA'] = [text.irreg_cap for text in texts]
+            df = self.regularize_data_frame(df, average=False)
+        elif query:
+            df['DATA'] = [text.freq_dist[query] for text in texts]
+            df = self.regularize_data_frame(df, average=False)
+        else: 
+            raise NameError('No query given')
+        return df
+        
+    def regularize_data_frame(self, df, average):
+        # averages data per month - you'll want to make sure it separates out different blog types here
+        # we might want to add raw counts rather than averaging them sometimes
+        unique_dates = set(df.DATE.values)
+        converted_df = pd.DataFrame()
+        converted_df['DATE'] = [date for date in unique_dates]
+        if average:
+            converted_df['DATA'] = [df[df['DATE'] == date]['DATA'].mean() for date in unique_dates]
+        else:
+            converted_df['DATA'] = [df[df['DATE'] == date]['DATA'].sum() for date in unique_dates]
+        return converted_df.sort_values(by=['DATE'])
         # interested across time and across blogs
     
     def get_subset_by_metadata(self, key, value):
@@ -176,40 +234,13 @@ class Text(object):
     #     #going to open each file to READ, but idk what fin is
     #     raw_html = fin.read()
     
-def graph(list_of_dataframes):
-    """given a list of things to graph, graph them"""
-    plt.style.use('seaborn-whitegrid')
-    fig = plt.figure()
-    ax = plt.axes()
-    for dataframe in list_of_dataframes:
-        # TODO add specific colors
-        dataframe = regularize_data_frame(dataframe)
-        dates = [date.isoformat() for date in dataframe['DATE']]
-        ax.plot(dates,dataframe['DATA'].values)
-    plt.show()
-     # plot the lexical diversity for each date
-
-def lexical_diversity_over_time(texts):
-    """Takes the lexical diversity for the corpus of posts, averages it per day(though you would specify to be larger amounts in the second to last line) then returns a dataframe of the results"""
-    df = pd.DataFrame()
-    df['DATA'] = [text.lexical_diversity for text in texts]
-    df['DATE'] = [text.timestamp.date() for text in texts]
-    return df
-    
-def regularize_data_frame(df):
-    unique_dates = set(df.DATE.values)
-    converted_df = pd.DataFrame()
-    converted_df['DATE'] = [date for date in unique_dates]
-    converted_df['DATA'] = [df[df['DATE'] == date]['DATA'].mean() for date in unique_dates]
-    return converted_df.sort_values(by=['DATE'])
-    
 def main():
     # if i run the file from the terminal a la $ python3 analysis.py
     # this is what will run.
     corpus = Corpus()
-    df = lexical_diversity_over_time(corpus.texts)
-    # x_axis, y_axis = lexical_diversity_over_time(corpus.texts)['DATE'],lexical_diversity_over_time(corpus.texts)['LD']
-    graph([df])
+    # df = lexical_diversity_over_time(corpus.texts)
+    # # x_axis, y_axis = lexical_diversity_over_time(corpus.texts)['DATE'],lexical_diversity_over_time(corpus.texts)['LD']
+    # graph([df])
 
 if __name__ == "__main__":
     main()

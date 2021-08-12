@@ -1,4 +1,5 @@
 blogs/
+real-blogs/
 .DS_Store
 __pycache__
 metadata.csv

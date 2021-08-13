@@ -4,3 +4,6 @@ real-blogs/
 __pycache__
 metadata.csv
 metadata-description.txt
+errors.txt
+test-blogs/
+.DS_Store

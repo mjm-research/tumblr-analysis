@@ -7,11 +7,13 @@ import pandas as pd
 from datetime import datetime
 import re
 import matplotlib.pyplot as plt
+import traceback
+
 
 class Corpus(object):
     def __init__(self):
         # self.thing = something
-        self.corpus_dir = 'blogs/'
+        self.corpus_dir = 'real-blogs/'
         self.filenames = self.all_files()
         self.metadata = pd.read_csv('metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
@@ -40,6 +42,7 @@ class Corpus(object):
         # TODO slice the dataframe up based on category
         # TODO add specific colors basd
         ax.plot(dataframe['DATE'],dataframe['DATA'].values)
+        plt.xticks(rotation=90)
         plt.show()
          # plot the lexical diversity for each date
 
@@ -111,7 +114,23 @@ class Corpus(object):
         return texts
 
     def create_texts(self):
-        return [Text(filename, self.stopwords, self.metadata) for filename in self.filenames]
+        empty_text_list = []
+        first = 0 
+        last = len(self.filenames)
+        for filename in self.filenames:
+            try:
+                empty_text_list.append(Text(filename, self.stopwords, self.metadata))
+                first +=1
+                print(str(first) + '/' + str(last))
+            except Exception as e:
+                first +=1
+                with open('errors.txt', 'a') as fout:
+                    fout.write('Failed on ' + filename +'\n')
+                    fout.write(str(traceback.format_exc())+'\n')
+                    fout.write('====='+'\n')
+                print(str(first) + '/' + str(last))
+        return empty_text_list
+        # return [Text(filename, self.stopwords, self.metadata) for filename in self.filenames]
 
 class Text(object):
     def __init__(self, fn, stopwords, metadata):
@@ -205,8 +224,14 @@ class Text(object):
         return nltk.FreqDist(list(ngrams(self.tokens, n)))
 
     def find_note_count(self):
-        target = self.soup.footer.text.split('—')[1]
-        return int(re.search("[0-9]+", target).group())
+        # try: 
+        #     target = self.soup.footer.text.split('—')[1]
+        # except:
+        try:
+            target = self.soup.footer.text
+            return int(re.search("[0-9]+", target).group())
+        except:
+            return None
 
 
         # TODO: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
@@ -283,3 +308,4 @@ if __name__ == "__main__":
 # each of those gets turned into a dataframe of results based on the thing you're interested in 
 # gets reconciled back into a graph
 # TODO: that reconciliation process might need a bit of massaging
+# TODO: sort out why some posts are failing on notes

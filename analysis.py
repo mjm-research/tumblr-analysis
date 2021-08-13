@@ -8,6 +8,7 @@ from datetime import datetime
 import re
 import matplotlib.pyplot as plt
 import traceback
+from datetime import datetime
 
 
 class Corpus(object):
@@ -21,11 +22,20 @@ class Corpus(object):
         # self.tilde_posts = [text for text in self.texts if text.contains_tilde]
         # data_to_graph can take a general search term (in which case it adds the raw word counts, though we could make it average) or one of these specialized requests: ['LD', 'SB']
         self.query = 'SB'
+        # gets the raw data to graph
         self.data_to_graph = self.get_data_over_time(self.texts, self.query)
+        # organize it into a set of five dataframes, one for each category
+        self.category_frames = self.divide_into_categories(self.data_to_graph)
+        # regularize each by month
+        self.regularized_category_frames = [self.regularize_data_frame(df, self.query) for df in self.category_frames]
         self.filenames_by_query = self.get_filenames_by_query(self.query)
-        # Note - you eventually want to insert a segment that will 
-        self.graph(self.data_to_graph)
-    
+        self.graph(self.regularized_category_frames)
+        
+    def divide_into_categories(self, df):
+        """takes a single dataframe, tagged for categories, and divides into separate dataframes based on each type"""
+        
+        return [df[df.CATEGORY == this_category] for this_category in set(df.CATEGORY.values)]
+        
     def get_filenames_by_query(self, query):
         if query == 'SB':
             return [text.filename for text in self.texts if text.irreg_cap]
@@ -34,46 +44,50 @@ class Corpus(object):
         else:
             return [text.filename for text in self.texts if text.freq_dist[query]]
     
-    def graph(self, dataframe):
-        """given a dataframe to graph, graph them"""
+    
+    
+    def graph(self, dataframes):
+        """given a set of dataframes to graph, graph them"""
         plt.style.use('seaborn-whitegrid')
         fig = plt.figure()
         ax = plt.axes()
-        # TODO slice the dataframe up based on category
-        # TODO add specific colors basd
-        ax.plot(dataframe['DATE'],dataframe['DATA'].values)
+        # should be five colors bc should be five categories
+        colors = {0:'b', 1: 'g', 2: 'r', 3: 'm', 4: 'y'}
+        color_count = 0
+        for dataframe in dataframes:
+            print(dataframe.DATE)
+            ax.plot(dataframe['DATE'],dataframe['DATA'].values, color=colors[color_count],label=dataframe.CATEGORY.iloc[1])
+            color_count += 1
+        ax.legend()
         plt.xticks(rotation=90)
         plt.show()
-         # plot the lexical diversity for each date
 
     def get_data_over_time(self, texts, query):
         df = pd.DataFrame()
         # TODO: add a particular category to segment according to here
-        df['CATEGORY'] = [text.blog for text in texts]
-        df['DATE'] = [text.timestamp.strftime('%Y-%m') for text in texts]
+        df['CATEGORY'] = [text.test_category for text in texts]
+        df['DATE'] = [datetime.strptime(text.timestamp.strftime('%Y-%m'),'%Y-%m') for text in texts]
         if query == 'LD':
             df['DATA'] = [text.lexical_diversity for text in texts]
-            df = self.regularize_data_frame(df, average=True)
         elif query == '~':
             df['DATA'] = [text.contains_tilde for text in texts]
-            df = self.regularize_data_frame(df, average=False)
         elif query == 'SB':
             df['DATA'] = [text.irreg_cap for text in texts]
-            df = self.regularize_data_frame(df, average=False)
         elif query:
             df['DATA'] = [text.freq_dist[query] for text in texts]
-            df = self.regularize_data_frame(df, average=False)
         else: 
             raise NameError('No query given')
         return df
         
-    def regularize_data_frame(self, df, average):
+    def regularize_data_frame(self, df, query):
         # averages data per month - you'll want to make sure it separates out different blog types here
         # we might want to add raw counts rather than averaging them sometimes
         unique_dates = set(df.DATE.values)
         converted_df = pd.DataFrame()
         converted_df['DATE'] = [date for date in unique_dates]
-        if average:
+        converted_df['CATEGORY'] = df.CATEGORY.iloc[1]
+        if query == 'LD':
+            # only average LD for now, otherwise add them
             converted_df['DATA'] = [df[df['DATE'] == date]['DATA'].mean() for date in unique_dates]
         else:
             converted_df['DATA'] = [df[df['DATE'] == date]['DATA'].sum() for date in unique_dates]
@@ -248,7 +262,6 @@ class Text(object):
         # text.fq['multiverse']
         # corpus.fq_counts = [text.fq[word] for text in corpus.texts]
         # TODO: reading for particular styles - reading for youth voices, innocent youth, old person standard English, academic. intermingling the different registers within a single post
-        # two approaches -  machine learning way. maybe at the sentence level or the paragraph level. topic modeling?
     
                 
     def get_the_text(self):
@@ -300,12 +313,9 @@ if __name__ == "__main__":
 
 
 # TODO: throw away video posts
-# TODO: Get metadata csv with particular categories and get it working on each of those
-# TODO: colors and legend for graph
 # TODO: needs a hair more refactoring, but right now it's trying to set up a pipeline 
 # the graph function takes a list of categories
 # from those categories, it generates a sublist of posts
 # each of those gets turned into a dataframe of results based on the thing you're interested in 
 # gets reconciled back into a graph
-# TODO: that reconciliation process might need a bit of massaging
 # TODO: sort out why some posts are failing on notes

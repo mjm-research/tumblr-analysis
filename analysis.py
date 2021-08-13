@@ -13,9 +13,9 @@ import traceback
 class Corpus(object):
     def __init__(self):
         # self.thing = something
-        self.corpus_dir = 'real-blogs/'
+        self.corpus_dir = 'test-blogs/'
         self.filenames = self.all_files()
-        self.metadata = pd.read_csv('metadata.csv')
+        self.metadata = pd.read_csv('test-metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.sort_by_date(self.create_texts())
         # self.tilde_posts = [text for text in self.texts if text.contains_tilde]

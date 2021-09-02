@@ -14,14 +14,14 @@ from datetime import datetime
 class Corpus(object):
     def __init__(self):
         # self.thing = something
-        self.corpus_dir = 'test-blogs/'
+        self.corpus_dir = 'real-blogs/'
         self.filenames = self.all_files()
         self.metadata = pd.read_csv('test-metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.sort_by_date(self.create_texts())
         # self.tilde_posts = [text for text in self.texts if text.contains_tilde]
         # data_to_graph can take a general search term (in which case it adds the raw word counts, though we could make it average) or one of these specialized requests: ['LD', 'SB']
-        self.query = 'SB'
+        self.query = 'LD'
         # gets the raw data to graph
         self.data_to_graph = self.get_data_over_time(self.texts, self.query)
         # organize it into a set of five dataframes, one for each category
@@ -43,7 +43,6 @@ class Corpus(object):
             return [text.filename for text in self.texts if text.contains_tilde]
         else:
             return [text.filename for text in self.texts if text.freq_dist[query]]
-    
     
     
     def graph(self, dataframes):
@@ -183,6 +182,9 @@ class Text(object):
         # self.paras_starting_with_cap_a = self.get_paragraphs_with_filter("token[0] == 'A'")
     def find_quoted_material(self):
         # use regex101.com to help build the regex tester
+        # quotations or also
+        # me: something something
+        # my sister: something something
         # TODO: Michelle might be able to do this
         # TODO: START HERE NEXT TIME
         # TODO: quotations - quotation marks (just in text body though). what's inside of the quotation marks
@@ -245,23 +247,7 @@ class Text(object):
             target = self.soup.footer.text
             return int(re.search("[0-9]+", target).group())
         except:
-            return None
-
-
-        # TODO: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
-        # TODO: make sure we get rid of punctuation when we want to and keep it when we do.
-        # get rid of these characters in the note text - '¶', '●', '⬀', '⬈'
-        # TODO: track lexical variance
-        # TODO: how do we throw away video? look for a pre tag if it exists throw it away?
-        # TODO: include next steps in the pipeline
-        # TODO: make sure the spaces 
-        # TODO: Why is " turning into `` by the tokenizer?
-        # TODO some way of getting word counts dynamically from the freq_dist
-        # key words: pure, wholesome, “social justice”, good, moral, ethic, time, timeline, multiverse, change, progress, nasty, gross, normal, freaks, weirdos, uncomfy, y’all, tumblr, valid, invalid, rights, “no rights”
-        # text.fq - our frequency distribution
-        # text.fq['multiverse']
-        # corpus.fq_counts = [text.fq[word] for text in corpus.texts]
-        # TODO: reading for particular styles - reading for youth voices, innocent youth, old person standard English, academic. intermingling the different registers within a single post
+            return 0
     
                 
     def get_the_text(self):
@@ -311,11 +297,18 @@ if __name__ == "__main__":
 # this_corpus = analysis.Corpus()
 # test_corpus = this_corpus.get_subset_by_metadata('blog','test')
 
-
+# TODO: lexical diversity within a single blog or set of blogss
+# TODO: get some readout of the empty posts
 # TODO: throw away video posts
 # TODO: needs a hair more refactoring, but right now it's trying to set up a pipeline 
 # the graph function takes a list of categories
 # from those categories, it generates a sublist of posts
 # each of those gets turned into a dataframe of results based on the thing you're interested in 
 # gets reconciled back into a graph
-# TODO: sort out why some posts are failing on notes
+# TODO: do we want to throw away empty posts? or keep them in some way
+# TODO: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
+# TODO: make sure we get rid of punctuation when we want to and keep it when we do.
+# TODO: how do we throw away video? should we? look for a pre tag if it exists throw it away?
+# TODO: Why is " turning into `` by the tokenizer?
+# TODO: reading for particular styles - reading for youth voices, innocent youth, old person standard English, academic. intermingling the different registers within a single post
+# TODO: Spit out filenames for relavant searches 

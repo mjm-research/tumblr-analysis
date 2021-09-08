@@ -9,55 +9,111 @@ import re
 import matplotlib.pyplot as plt
 import traceback
 from datetime import datetime
+import cProfile
+import pstats
+import random
+from progress.bar import Bar
+from nltk.collocations import BigramCollocationFinder
+from nltk.metrics import BigramAssocMeasures
+import string
 
+def time_program():
+    prof = cProfile.Profile()
+    prof.run('Corpus()')
+    prof.dump_stats('output.prof')
+    stream = open('output.txt','w')
+    p = pstats.Stats('output.prof', stream=stream).sort_stats('cumtime')
+    p.sort_stats('cumtime')
+    p.print_stats()
 
 class Corpus(object):
     def __init__(self):
         # self.thing = something
-        self.corpus_dir = 'real-blogs/'
-        self.filenames = self.all_files()
-        self.metadata = pd.read_csv('test-metadata.csv')
+        self.clean_files()
+        # Query options are "SB" (spongebob), "LD" (lexical diversity), "any given word" (general search queries)
+        # Can also search collocations two ways - the first is to just pass "TC" to get a list of the top collocation for each file
+        # Second is "CS: A Collocation" to search for a particular collocation
+        self.query = 'CS: John Green'
+        test = True
+        if test:
+            # uncomment next two lines for very specific testing on a controlled subfolder
+            # self.corpus_dir = 'test-blogs/'
+            # self.filenames = self.all_files()
+            self.corpus_dir = 'real-blogs'
+            self.filenames = random.sample(self.all_files(),100000)
+            self.metadata = pd.read_csv('test-metadata.csv')
+        else:
+            self.corpus_dir = 'real-blogs/'
+            self.filenames = self.all_files()
+            self.metadata = pd.read_csv('test-metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.sort_by_date(self.create_texts())
-        # self.tilde_posts = [text for text in self.texts if text.contains_tilde]
         # data_to_graph can take a general search term (in which case it adds the raw word counts, though we could make it average) or one of these specialized requests: ['LD', 'SB']
-        self.query = 'LD'
         # gets the raw data to graph
-        self.data_to_graph = self.get_data_over_time(self.texts, self.query)
-        # organize it into a set of five dataframes, one for each category
-        self.category_frames = self.divide_into_categories(self.data_to_graph)
-        # regularize each by month
-        self.regularized_category_frames = [self.regularize_data_frame(df, self.query) for df in self.category_frames]
         self.filenames_by_query = self.get_filenames_by_query(self.query)
-        self.graph(self.regularized_category_frames)
-        
+        self.export_filenames_by_query()
+        if self.query == "TC":
+            pass
+        else:
+            self.data_to_graph = self.get_data_over_time(self.texts, self.query)
+            # organize it into a set of five dataframes, one for each category
+            self.category_frames = self.divide_into_categories(self.data_to_graph)
+            # regularize each by month
+            self.regularized_category_frames = [self.regularize_data_frame(df, self.query) for df in self.category_frames]
+            self.graph(self.regularized_category_frames)
+
+
+
+    def clean_files(self):
+        """Cleans up past files by emptying them so they can get new content from this run."""
+        with open('errors.txt', 'r+') as fin:
+            fin.truncate(0)
+        with open('filenames_by_query.txt', 'r+') as fin:
+            fin.truncate(0)
+        with open('empty_files.txt', 'r+') as fin:
+            fin.truncate(0)
+        with open('output.txt', 'r+') as fin:
+            fin.truncate(0)
+        with open('output.prof', 'r+') as fin:
+            fin.truncate(0)
+
     def divide_into_categories(self, df):
         """takes a single dataframe, tagged for categories, and divides into separate dataframes based on each type"""
-        
+
         return [df[df.CATEGORY == this_category] for this_category in set(df.CATEGORY.values)]
-        
+
     def get_filenames_by_query(self, query):
         if query == 'SB':
             return [text.filename for text in self.texts if text.irreg_cap]
         elif query == '~':
             return [text.filename for text in self.texts if text.contains_tilde]
+        elif query == 'DIALOGUE':
+            return [text.filename for text in self.texts if text.contains_dialogue]
+        elif query == "TC":
+            return [(text.filename, text.most_common_collocation) for text in self.texts]
+        elif query.startswith("CS:"):
+            # break the collocation query into something we can search for
+            proc_query = (self.query.lower().split()[1], self.query.lower().split()[2])
+            print(proc_query)
+            return [text.filename for text in self.texts if text.collocation_freq_dist[proc_query]]
         else:
             return [text.filename for text in self.texts if text.freq_dist[query]]
-    
-    
+
+    def export_filenames_by_query(self):
+        with open('filenames_by_query.txt', 'w') as fout:
+            for line in self.filenames_by_query:
+                fout.write(str(line) + '\n')
+
     def graph(self, dataframes):
         """given a set of dataframes to graph, graph them"""
         plt.style.use('seaborn-whitegrid')
-        fig = plt.figure()
-        ax = plt.axes()
         # should be five colors bc should be five categories
-        colors = {0:'b', 1: 'g', 2: 'r', 3: 'm', 4: 'y'}
+        colors = {0:'b', 1: 'g', 2: 'r', 3: 'm', 4: 'y', 5: 'c', 6: 'k'}
         color_count = 0
         for dataframe in dataframes:
-            print(dataframe.DATE)
-            ax.plot(dataframe['DATE'],dataframe['DATA'].values, color=colors[color_count],label=dataframe.CATEGORY.iloc[1])
+            plt.plot(dataframe['DATE'],dataframe['DATA'].values, color=colors[color_count],label=dataframe.CATEGORY.iloc[0])
             color_count += 1
-        ax.legend()
+        plt.legend()
         plt.xticks(rotation=90)
         plt.show()
 
@@ -72,19 +128,26 @@ class Corpus(object):
             df['DATA'] = [text.contains_tilde for text in texts]
         elif query == 'SB':
             df['DATA'] = [text.irreg_cap for text in texts]
+        elif query.startswith('CS:'):
+            proc_query = (self.query.lower().split()[1], self.query.lower().split()[2])
+            df['DATA'] = [text.collocation_freq_dist[proc_query] for text in texts]
+        elif query == 'DIALOGUE':
+            df['DATA'] = [text.contains_dialogue for text in texts]
+        # elif query == 'COLLOCATIONS':
+                # df['DATA'] = [text.collocations for text in corpus.texts]
         elif query:
             df['DATA'] = [text.freq_dist[query] for text in texts]
-        else: 
+        else:
             raise NameError('No query given')
         return df
-        
+
     def regularize_data_frame(self, df, query):
         # averages data per month - you'll want to make sure it separates out different blog types here
         # we might want to add raw counts rather than averaging them sometimes
         unique_dates = set(df.DATE.values)
         converted_df = pd.DataFrame()
         converted_df['DATE'] = [date for date in unique_dates]
-        converted_df['CATEGORY'] = df.CATEGORY.iloc[1]
+        converted_df['CATEGORY'] = df.CATEGORY.iloc[0]
         if query == 'LD':
             # only average LD for now, otherwise add them
             converted_df['DATA'] = [df[df['DATE'] == date]['DATA'].mean() for date in unique_dates]
@@ -92,7 +155,7 @@ class Corpus(object):
             converted_df['DATA'] = [df[df['DATE'] == date]['DATA'].sum() for date in unique_dates]
         return converted_df.sort_values(by=['DATE'])
         # interested across time and across blogs
-    
+
     def get_subset_by_metadata(self, key, value):
         """sub_corpus = this_corpus.get_subset_by_metadata('blog','ghost')"""
         return [text for text in self.texts if getattr(text, key) == value]
@@ -101,19 +164,19 @@ class Corpus(object):
         for text in self.texts:
             if text.filename.split('/')[-1] == fn:
                 return text
-    
+
     def function_name(parameters_for_the_function):
         print('the stuff here')
-        return none    
-        
+        return none
+
     def sort_by_date(self, texts):
         texts.sort(key=lambda x: x.timestamp)
         return texts
-            
+
     def get_particular_blog(self, search_term):
         # TODO - make sure this works when we have metadata
         return [text for text in self.texts if text.post_metadata['blog'] == search_term]
-    
+
     def all_files(self):
         """given the corpus_dir, return the filenames in it"""
         texts = []
@@ -127,26 +190,27 @@ class Corpus(object):
         return texts
 
     def create_texts(self):
-        empty_text_list = []
-        first = 0 
-        last = len(self.filenames)
+        text_list = []
+        bar = Bar('Processing', max=len(self.filenames))
         for filename in self.filenames:
             try:
-                empty_text_list.append(Text(filename, self.stopwords, self.metadata))
-                first +=1
-                print(str(first) + '/' + str(last))
-            except Exception as e:
-                first +=1
+                text_list.append(Text(filename, self.stopwords, self.metadata, self.query))
+                bar.next()
+            except AttributeError:
+                with open('empty_files.txt', 'a') as fout:
+                    fout.write(filename + '\n')
+                bar.next()
+            except Exception:
                 with open('errors.txt', 'a') as fout:
                     fout.write('Failed on ' + filename +'\n')
                     fout.write(str(traceback.format_exc())+'\n')
                     fout.write('====='+'\n')
-                print(str(first) + '/' + str(last))
-        return empty_text_list
-        # return [Text(filename, self.stopwords, self.metadata) for filename in self.filenames]
+                bar.next()
+        bar.finish()
+        return text_list
 
 class Text(object):
-    def __init__(self, fn, stopwords, metadata):
+    def __init__(self, fn, stopwords, metadata, query):
         # self.thing = something that gets you that thing
         self.filename = fn
         self.blog = self.filename.split('/')[1]
@@ -154,66 +218,103 @@ class Text(object):
         # this will dynamically assign attributes based on your metadata.
         for item in self.post_metadata:
             setattr(self, item, self.post_metadata[item].iloc[0])
-        self.raw_html = self.get_the_text()
-        self.soup = BeautifulSoup(self.raw_html, 'lxml')
+        # self.raw_html = self.get_the_text()
+        # ^^ refactored to not save the raw_html as it's only used once
+        with open(fn, 'r') as fin:
+            #going to open each file to READ, but idk what fin is
+            self.soup = BeautifulSoup(fin.read(), 'lxml')
         self.time_as_string =self.soup.time.text
-        self.timestamp = datetime.strptime(self.soup.time.text,'%m/%d/%Y %H:%M:%S %p')
+        if self.time_as_string.endswith('PM') or self.time_as_string.endswith('AM'):
+            self.timestamp = datetime.strptime(self.soup.time.text,'%m/%d/%Y %H:%M:%S %p')
+        else:
+            self.timestamp = datetime.strptime(self.soup.time.text,'%m/%d/%Y %H:%M:%S')
+        # try:
+        #     self.timestamp = datetime.strptime(self.soup.time.text,'%m/%d/%Y %H:%M:%S %p')
+        # except ValueError:
+        #     # koreanqueer formats their timestamps differently for some reason
         self.p_tags = self.soup.find_all('p')
         self.text = ' '.join([tag.text for tag in self.p_tags])
-        self.post_tags = [tag.text for tag in self.soup.find_all('a')][:-1]
-        self.note_count = self.find_note_count()
+        # self.tokens = nltk.tokenize.WordPunctTokenizer().tokenize(self.text) # would be faster but break apart tilde words
         self.tokens = nltk.word_tokenize(self.text)
-        self.stopwords = stopwords
+        self.cleaned_tokens = self.clean_tokens()
         self.freq_dist = nltk.FreqDist(self.tokens)
-        self.contains_tilde = self.tilde_true()
-        self.quoted_material = self.find_quoted_material()
-        if self.contains_tilde:
-            # TODO: see if this causes problems downstream. if it does, you can just take the if statement out.
-            self.tilde_paragraphs = [p.text for p in self.p_tags if '~' in p.text]
-            self.tilde_counts = self.count_tildes()
-        # TODO: can lexical diversity be more than 1? 
-        self.lexical_diversity = len(set(self.tokens))/len(self.tokens)
-        # all words divided by unique words
-        self.irreg_cap = self.find_irreg_cap()
-        if self.irreg_cap:
-            self.irreg_cap_paragraphs = self.get_paragraphs_with_filter("token[1:].isupper() and token not in ['AM', 'PM']")
-        self.dialogue = self.find_dialogue()
+        if query == '~':
+            self.contains_tilde = self.tilde_true()
+            if self.contains_tilde:
+                self.tilde_paragraphs = [p.text for p in self.p_tags if '~' in p.text]
+                self.tilde_counts = self.count_tildes()
+        elif query == 'LD':
+            self.lexical_diversity = len(set(self.tokens))/len(self.tokens)
+        elif query == 'SB':
+            self.irreg_cap = self.find_irreg_cap()
+            if self.irreg_cap:
+                self.irreg_cap_paragraphs = self.get_paragraphs_with_filter("token[1:].isupper() and token not in ['AM', 'PM']")
+        elif query == 'DIALOGUE':
+            self.contains_dialogue = self.find_dialogue()
+        elif query == 'COLLOCATIONS' or query == 'TC' or query.startswith('CS:'):
+            self.most_common_collocation = self.find_collocations()
+            self.collocation_freq_dist = nltk.FreqDist(list(nltk.bigrams(self.cleaned_tokens)))
+            if len(self.most_common_collocation) >= 1:
+                self.top_collocation_count = self.collocation_freq_dist[self.most_common_collocation[0]]
+            else:
+                self.top_collocation_count = 0
+        elif query == 'MISC':
+            """gathers a bunch of miscellaneous attributes that we might want to have access to but are not actively used rn.
+            will want to pull them out into a particular query to activate them"""
+            self.post_tags = [tag.text for tag in self.soup.find_all('a')][:-1]
+            self.note_count = self.find_note_count()
+
+
+    def find_collocations(self):
+        """finds collocations"""
+        bcf = BigramCollocationFinder.from_words(self.cleaned_tokens)
+        return bcf.nbest(BigramAssocMeasures.likelihood_ratio, 1)
         # example of how to use the filter function:
         # self.paras_starting_with_cap_a = self.get_paragraphs_with_filter("token[0] == 'A'")
-    def find_quoted_material(self):
-        # use regex101.com to help build the regex tester
-        # quotations or also
-        # me: something something
-        # my sister: something something
-        # TODO: Michelle might be able to do this
-        # TODO: START HERE NEXT TIME
-        # TODO: quotations - quotation marks (just in text body though). what's inside of the quotation marks
 
-        pass
-    
+    def clean_tokens(self):
+        """cleans tokens according to the parameters we want. this is where you'll want to adjust it if it's too aggressive"""
+        regex = re.compile(r'¶|●|[0-9]+\/[0-9]+\/[0-9]+|[0-9]+:[0-9]+:[0-9]+|⬈|⬀|AM|PM|’')
+        # remove random junk from tumblr
+        cleaned_tokens = [token for token in self.tokens if not regex.match(token)]
+        # remove punctuation
+        cleaned_tokens = [token.lower() for token in cleaned_tokens if token not in string.punctuation]
+        return cleaned_tokens
+
     def find_dialogue(self):
-        search = r'\w+: \w+'
-        p_result = []
-        for p in self.p_tags:
-            if re.findall(search, p.text):
-                p_result.append(p.text)
-        
-        return p_result
-        
+        """looks to see if a post contains dialogue type characters and, if yes, return the filename"""
+        result = False
+        if self.freq_dist['\''] or self.freq_dist['\"'] or self.freq_dist[':'] or self.freq_dist['\'\'']:
+            result = True
+        return result
+        # old method for searching (regex needs work)
+        # search = r'\w+: \w+|\"\w+ \w+\"|\'\w+: \w+|\''
+        # p_result = []
+        # for p in self.p_tags:
+        #     if re.findall(search, p.text):
+        #         p_result.append(p.text)
+        #
+        #return p_result
+
     def count_tildes(self):
         beginning_tilde_counts = len([token for token in self.tokens if token.startswith('~')])
         end_tilde_counts = len([token for token in self.tokens if token.endswith('~')])
         return (beginning_tilde_counts, end_tilde_counts)
-    
+
     def tilde_true(self):
-        # TODO: maybe refactor
+        # TODO: maybe refactor by looking at the FreqDist instead of token by token. problem right now is
+        # that the tokenizer won't split on ~
+        # result = False
+        #     if self.freq_dist['~']:
+        #         result = True
+        # return result
         result = False
         for token in self.tokens:
             if '~' in token:
                 result = True
                 break
         return result
-    
+
     def find_irreg_cap(self):
         result = False
         for token in self.tokens:
@@ -221,7 +322,7 @@ class Text(object):
                 result = True
                 break
         return result
-        
+
     def get_paragraphs_with_filter(self, expression):
         """call this on a text to get paragraphs using a particular filter on the interior tokens. for example -
         self.get_paragraphs_with_filter("token[1:].isupper()")
@@ -235,44 +336,33 @@ class Text(object):
                     p_results.append(p)
         return p_results
 
-    def collocations(self, n):
+    def common_ngrams(self, n):
         """take a text and get the most common phrases of length n. for example, text.collocations(3) gives you most common phrases 3 words long"""
         return nltk.FreqDist(list(ngrams(self.tokens, n)))
 
     def find_note_count(self):
-        # try: 
-        #     target = self.soup.footer.text.split('—')[1]
-        # except:
         try:
             target = self.soup.footer.text
             return int(re.search("[0-9]+", target).group())
         except:
             return 0
-    
-                
+
+
     def get_the_text(self):
         with open(self.filename, 'r') as file_in:
             return file_in.read()
-         
-    # with open(fn, 'r') as file_in:
-    #     #going to open each file to READ, but idk what fin is
-    #     raw_html = fin.read()
-    
+
+
 def main():
     # if i run the file from the terminal a la $ python3 analysis.py
     # this is what will run.
-    corpus = Corpus()
-    # df = lexical_diversity_over_time(corpus.texts)
-    # # x_axis, y_axis = lexical_diversity_over_time(corpus.texts)['DATE'],lexical_diversity_over_time(corpus.texts)['LD']
-    # graph([df])
+    time_program()
+
 
 if __name__ == "__main__":
     main()
-    
-    
-    
-# >>> corpus.posts # give all your posts (will be a list)
-# >>> first_post = corpus.posts[0]
+
+
 
 # $ python3
 # >>> import analysis
@@ -282,7 +372,7 @@ if __name__ == "__main__":
 # >>> import importlib # only has to be done once
 # >>> importlib.reload(analysis)
 # >>> corpus = analysis.Corpus() # re-instantiate the class
-# >>> corpus[0].raw_text # to get the raw text for text number 1
+# >>> corpus.texts[0].raw_text # to get the raw text for text number 1
 
 # Use the attributes in conjunction with each other to find things you care about and where to look for them. For example:
 # >>> for text in corpus.texts:
@@ -292,23 +382,51 @@ if __name__ == "__main__":
 # ...             print(text.time_as_string)
 
 
-#   (to pull out just the test file in python)
+#   (to pull out just a test file in python)
 # import analysis
 # this_corpus = analysis.Corpus()
 # test_corpus = this_corpus.get_subset_by_metadata('blog','test')
 
-# TODO: lexical diversity within a single blog or set of blogss
-# TODO: get some readout of the empty posts
-# TODO: throw away video posts
-# TODO: needs a hair more refactoring, but right now it's trying to set up a pipeline 
-# the graph function takes a list of categories
-# from those categories, it generates a sublist of posts
-# each of those gets turned into a dataframe of results based on the thing you're interested in 
-# gets reconciled back into a graph
-# TODO: do we want to throw away empty posts? or keep them in some way
-# TODO: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
-# TODO: make sure we get rid of punctuation when we want to and keep it when we do.
-# TODO: how do we throw away video? should we? look for a pre tag if it exists throw it away?
-# TODO: Why is " turning into `` by the tokenizer?
-# TODO: reading for particular styles - reading for youth voices, innocent youth, old person standard English, academic. intermingling the different registers within a single post
-# TODO: Spit out filenames for relavant searches 
+# Complete to discuss
+# DONE: lexical diversity within a single blog or set of blogs √ - can do that by pulling out to a smaller folder
+# DONE: get some readout of the empty posts √
+# DONE: Spit out filenames for relavant searches √
+# DONE: Account for alternate time stamps √
+# DONE: Find quoted material
+# DONE: added in a normalizing script for certain things
+# DONE: make the category thing more flexible (think it will break with < 5 categories right now) - can handle up to seven categories now
+# DONE: tweak bigrams/collocations to be more usable. right now it will just tell you which ones are there;
+# DONE: You can search for top collocations and it will print them out
+# TODO: Can give it a particular collocation and it will search it across the corpus
+
+# Essential
+# TODO: Get the other blog materials
+# TODO: Refactor to be more clearly usable by Michelle
+# TODO: Troubleshoot "math domain error" in real-blogs/achtervulgan315/posts/178376711031.html and similar files - https://github.com/nltk/nltk/issues/2200 Full stack trace below
+
+# Stretch / Maybe
+# HOLD: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
+# HOLD: reading for particular styles - reading for youth voices, innocent youth, old person standard English, academic. intermingling the different registers within a single post
+
+
+# Failed on real-blogs/achtervulgan315/posts/178376711031.html
+# Traceback (most recent call last):
+#   File "/Users/bmw9t/projects/tumblr-analysis/analysis.py", line 197, in create_texts
+#     text_list.append(Text(filename, self.stopwords, self.metadata, self.query))
+#   File "/Users/bmw9t/projects/tumblr-analysis/analysis.py", line 255, in __init__
+#     self.most_common_collocation = self.find_collocations()
+#   File "/Users/bmw9t/projects/tumblr-analysis/analysis.py", line 271, in find_collocations
+#     return bcf.nbest(BigramAssocMeasures.likelihood_ratio, 1)
+#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/collocations.py", line 138, in nbest
+#     return [p for p, s in self.score_ngrams(score_fn)[:n]]
+#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/collocations.py", line 134, in score_ngrams
+#     return sorted(self._score_ngrams(score_fn), key=lambda t: (-t[1], t[0]))
+#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/collocations.py", line 126, in _score_ngrams
+#     score = self.score_ngram(score_fn, *tup)
+#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/collocations.py", line 199, in score_ngram
+#     return score_fn(n_ii, (n_ix, n_xi), n_all)
+#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/metrics/association.py", line 148, in likelihood_ratio
+#     return 2 * sum(
+#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/metrics/association.py", line 149, in <genexpr>
+#     obs * _ln(obs / (exp + _SMALL) + _SMALL)
+# ValueError: math domain error

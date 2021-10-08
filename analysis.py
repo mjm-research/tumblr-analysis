@@ -33,14 +33,16 @@ class Corpus(object):
         # Query options are "SB" (spongebob), "LD" (lexical diversity), "any given word" (general search queries)
         # Can also search collocations two ways - the first is to just pass "TC" to get a list of the top collocation for each file
         # Second is "CS: A Collocation" to search for a particular collocation
-        self.query = 'CS: John Green'
+        self.query = 'wholesome'
+        # set test = False if you want to run on the smaller corpus
         test = True
         if test:
             # uncomment next two lines for very specific testing on a controlled subfolder
             # self.corpus_dir = 'test-blogs/'
             # self.filenames = self.all_files()
+            # comment next three lines if testing on test-blogs
             self.corpus_dir = 'real-blogs'
-            self.filenames = random.sample(self.all_files(),100000)
+            self.filenames = random.sample(self.all_files(),10000)
             self.metadata = pd.read_csv('test-metadata.csv')
         else:
             self.corpus_dir = 'real-blogs/'
@@ -50,10 +52,17 @@ class Corpus(object):
         self.texts = self.sort_by_date(self.create_texts())
         # data_to_graph can take a general search term (in which case it adds the raw word counts, though we could make it average) or one of these specialized requests: ['LD', 'SB']
         # gets the raw data to graph
-        self.filenames_by_query = self.get_filenames_by_query(self.query)
-        self.export_filenames_by_query()
+        if not self.query == 'TM':
+            self.filenames_by_query = self.get_filenames_by_query(self.query)
+            self.export_filenames_by_query()
         if self.query == "TC":
             pass
+        elif self.query == 'TM':
+            pass
+            # topic modeling unimplemented for now
+            # data_words = [text.cleaned_tokens for text in self.texts]
+            # id2word = corpora.Dictionary(data_words)
+            # corpus = [id2word.doc2bow(text) for text in corpus.texts]
         else:
             self.data_to_graph = self.get_data_over_time(self.texts, self.query)
             # organize it into a set of five dataframes, one for each category
@@ -214,12 +223,11 @@ class Text(object):
         # self.thing = something that gets you that thing
         self.filename = fn
         self.blog = self.filename.split('/')[1]
+        # using the blog name, look at the metadata csv and grab the rest of the metadata
         self.post_metadata = metadata.loc[metadata['blog'] == self.blog]
         # this will dynamically assign attributes based on your metadata.
         for item in self.post_metadata:
             setattr(self, item, self.post_metadata[item].iloc[0])
-        # self.raw_html = self.get_the_text()
-        # ^^ refactored to not save the raw_html as it's only used once
         with open(fn, 'r') as fin:
             #going to open each file to READ, but idk what fin is
             self.soup = BeautifulSoup(fin.read(), 'lxml')
@@ -258,6 +266,8 @@ class Text(object):
                 self.top_collocation_count = self.collocation_freq_dist[self.most_common_collocation[0]]
             else:
                 self.top_collocation_count = 0
+        # elif query == 'TM':
+        #     id2word = corpora.Dictionary(self.cleaned_tokens)
         elif query == 'MISC':
             """gathers a bunch of miscellaneous attributes that we might want to have access to but are not actively used rn.
             will want to pull them out into a particular query to activate them"""
@@ -387,22 +397,12 @@ if __name__ == "__main__":
 # this_corpus = analysis.Corpus()
 # test_corpus = this_corpus.get_subset_by_metadata('blog','test')
 
-# Complete to discuss
-# DONE: lexical diversity within a single blog or set of blogs √ - can do that by pulling out to a smaller folder
-# DONE: get some readout of the empty posts √
-# DONE: Spit out filenames for relavant searches √
-# DONE: Account for alternate time stamps √
-# DONE: Find quoted material
-# DONE: added in a normalizing script for certain things
-# DONE: make the category thing more flexible (think it will break with < 5 categories right now) - can handle up to seven categories now
-# DONE: tweak bigrams/collocations to be more usable. right now it will just tell you which ones are there;
-# DONE: You can search for top collocations and it will print them out
-# TODO: Can give it a particular collocation and it will search it across the corpus
-
 # Essential
+# TODO: look for a bigram over the whole blog corpus
 # TODO: Get the other blog materials
 # TODO: Refactor to be more clearly usable by Michelle
 # TODO: Troubleshoot "math domain error" in real-blogs/achtervulgan315/posts/178376711031.html and similar files - https://github.com/nltk/nltk/issues/2200 Full stack trace below
+# I would pull in just that file and test but i think it's not a big deal
 
 # Stretch / Maybe
 # HOLD: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
@@ -430,3 +430,5 @@ if __name__ == "__main__":
 #   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/metrics/association.py", line 149, in <genexpr>
 #     obs * _ln(obs / (exp + _SMALL) + _SMALL)
 # ValueError: math domain error
+
+# TODO: Time after that - get a smaller subset for michelle to use on her computer. get the script running on your computer. and also get visual studio code running.

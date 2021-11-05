@@ -439,3 +439,4 @@ if __name__ == "__main__":
 # TODO: get all of the stuff and run it ALL on Brandon's laptop
 # test = analysis.Text('real-blogs/bripopsicle/posts/28782550789.html', nltk.corpus.stopwords.words('english'),pd.read_csv('test-metadata.csv'),'SB')
 # go through test.get_irreg_cap_paragraphs()  and check what is triggering spongebob. it might be the symbols?
+# todo - https://www.geeksforgeeks.org/python-split-camelcase-string-to-individual-strings/

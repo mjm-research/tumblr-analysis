@@ -36,6 +36,7 @@ class Corpus(object):
         self.query = 'wholesome'
         # set test = False if you want to run on the smaller corpus
         test = True
+        # TODO: refactor this to call it sample
         if test:
             # uncomment next two lines for very specific testing on a controlled subfolder
             # self.corpus_dir = 'test-blogs/'
@@ -75,6 +76,7 @@ class Corpus(object):
 
     def clean_files(self):
         """Cleans up past files by emptying them so they can get new content from this run."""
+        #TODO: check to see if these files exist
         with open('errors.txt', 'r+') as fin:
             fin.truncate(0)
         with open('filenames_by_query.txt', 'r+') as fin:
@@ -328,7 +330,7 @@ class Text(object):
     def find_irreg_cap(self):
         result = False
         for token in self.tokens:
-            if token[1:].isupper() and token not in ['AM', 'PM']:
+            if token[1:].isupper() and token[1:].islower() and token not in ['AM', 'PM']:
                 result = True
                 break
         return result
@@ -336,7 +338,6 @@ class Text(object):
     def get_paragraphs_with_filter(self, expression):
         """call this on a text to get paragraphs using a particular filter on the interior tokens. for example -
         self.get_paragraphs_with_filter("token[1:].isupper()")
-        self.get_paragraphs_with_filter("token[0] == 'A'")
         returns all the spongebob paragraphs (they will contain tokens where an interior character is capitalized)
         """
         p_results = []
@@ -398,6 +399,7 @@ if __name__ == "__main__":
 # test_corpus = this_corpus.get_subset_by_metadata('blog','test')
 
 # Essential
+# TODO: Create better collocation that searches without looking at categories collapses all authors for a week or month together
 # TODO: look for a bigram over the whole blog corpus
 # TODO: Get the other blog materials
 # TODO: Refactor to be more clearly usable by Michelle
@@ -431,4 +433,5 @@ if __name__ == "__main__":
 #     obs * _ln(obs / (exp + _SMALL) + _SMALL)
 # ValueError: math domain error
 
-# TODO: Time after that - get a smaller subset for michelle to use on her computer. get the script running on your computer. and also get visual studio code running.
+# TODO next time - work on fixing spongebob
+# TODO 

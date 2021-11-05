@@ -33,17 +33,16 @@ class Corpus(object):
         # Query options are "SB" (spongebob), "LD" (lexical diversity), "any given word" (general search queries)
         # Can also search collocations two ways - the first is to just pass "TC" to get a list of the top collocation for each file
         # Second is "CS: A Collocation" to search for a particular collocation
-        self.query = 'wholesome'
+        self.query = 'SB'
         # set test = False if you want to run on the smaller corpus
-        test = True
-        # TODO: refactor this to call it sample
-        if test:
+        sample = True
+        if sample:
             # uncomment next two lines for very specific testing on a controlled subfolder
             # self.corpus_dir = 'test-blogs/'
             # self.filenames = self.all_files()
             # comment next three lines if testing on test-blogs
             self.corpus_dir = 'real-blogs'
-            self.filenames = random.sample(self.all_files(),10000)
+            self.filenames = random.sample(self.all_files(),1000)
             self.metadata = pd.read_csv('test-metadata.csv')
         else:
             self.corpus_dir = 'real-blogs/'
@@ -72,7 +71,11 @@ class Corpus(object):
             self.regularized_category_frames = [self.regularize_data_frame(df, self.query) for df in self.category_frames]
             self.graph(self.regularized_category_frames)
 
-
+    def spongebob_tester(self):
+        with open('filenames_by_query.txt','r') as filein:
+            files = filein.readlines()
+        for fn in files:
+            print(Text(fn.strip('\n'), self.stopwords, self.metadata,'SB').get_irreg_cap_paragraphs())
 
     def clean_files(self):
         """Cleans up past files by emptying them so they can get new content from this run."""
@@ -258,7 +261,7 @@ class Text(object):
         elif query == 'SB':
             self.irreg_cap = self.find_irreg_cap()
             if self.irreg_cap:
-                self.irreg_cap_paragraphs = self.get_paragraphs_with_filter("token[1:].isupper() and token not in ['AM', 'PM']")
+                self.irreg_cap_paragraphs = self.get_irreg_cap_paragraphs()
         elif query == 'DIALOGUE':
             self.contains_dialogue = self.find_dialogue()
         elif query == 'COLLOCATIONS' or query == 'TC' or query.startswith('CS:'):
@@ -330,21 +333,17 @@ class Text(object):
     def find_irreg_cap(self):
         result = False
         for token in self.tokens:
-            if token[1:].isupper() and token[1:].islower() and token not in ['AM', 'PM']:
+            if len(token) > 1 and not token[1:].isupper() and not token[1:].islower() and token not in ['AM', 'PM', '●', '¶'] and not re.match('[0-9]{1,4}/[0-9]{1,2}/[0-9]{1,2}|[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}|[0-9]+', token) and not any(not c.isalnum() for c in token):
                 result = True
                 break
         return result
 
-    def get_paragraphs_with_filter(self, expression):
-        """call this on a text to get paragraphs using a particular filter on the interior tokens. for example -
-        self.get_paragraphs_with_filter("token[1:].isupper()")
-        returns all the spongebob paragraphs (they will contain tokens where an interior character is capitalized)
-        """
+    def get_irreg_cap_paragraphs(self):
         p_results = []
         for p in self.p_tags:
             for token in nltk.word_tokenize(p.text):
-                if eval(expression):
-                    p_results.append(p)
+                if len(token) > 1 and not token[1:].isupper() and not token[1:].islower() and token not in ['AM', 'PM', '●', '¶'] and not re.match('[0-9]{1,4}/[0-9]{1,2}/[0-9]{1,2}|[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}|[0-9]+', token) and not any(not c.isalnum() for c in token):
+                    p_results.append(token)
         return p_results
 
     def common_ngrams(self, n):
@@ -433,5 +432,10 @@ if __name__ == "__main__":
 #     obs * _ln(obs / (exp + _SMALL) + _SMALL)
 # ValueError: math domain error
 
+# TODO: can we move away to other metadata categories (we should be able to do so)
 # TODO next time - work on fixing spongebob
-# TODO 
+# TODO to trouble shoot
+# TODO: Finish metadata
+# TODO: get all of the stuff and run it ALL on Brandon's laptop
+# test = analysis.Text('real-blogs/bripopsicle/posts/28782550789.html', nltk.corpus.stopwords.words('english'),pd.read_csv('test-metadata.csv'),'SB')
+# go through test.get_irreg_cap_paragraphs()  and check what is triggering spongebob. it might be the symbols?

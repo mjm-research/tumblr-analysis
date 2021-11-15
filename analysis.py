@@ -33,9 +33,10 @@ class Corpus(object):
         # Query options are "SB" (spongebob), "LD" (lexical diversity), "any given word" (general search queries)
         # Can also search collocations two ways - the first is to just pass "TC" to get a list of the top collocation for each file
         # Second is "CS: A Collocation" to search for a particular collocation
-        self.query = 'SB'
+        self.query = 'a'
+        self.category = 'politics'
         # set test = False if you want to run on the smaller corpus
-        sample = True
+        sample = False
         if sample:
             # uncomment next two lines for very specific testing on a controlled subfolder
             # self.corpus_dir = 'test-blogs/'
@@ -45,9 +46,11 @@ class Corpus(object):
             self.filenames = random.sample(self.all_files(),1000)
             self.metadata = pd.read_csv('test-metadata.csv')
         else:
-            self.corpus_dir = 'real-blogs/'
-            self.filenames = self.all_files()
-            self.metadata = pd.read_csv('test-metadata.csv')
+            self.corpus_dir = 'real-blogs'
+            # self.filenames = self.all_files() 
+            # uncomment above and comment below to run on whole corpus
+            self.filenames = random.sample(self.all_files(),1000)
+            self.metadata = pd.read_csv('metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.sort_by_date(self.create_texts())
         # data_to_graph can take a general search term (in which case it adds the raw word counts, though we could make it average) or one of these specialized requests: ['LD', 'SB']
@@ -133,8 +136,8 @@ class Corpus(object):
 
     def get_data_over_time(self, texts, query):
         df = pd.DataFrame()
-        # TODO: add a particular category to segment according to here
-        df['CATEGORY'] = [text.test_category for text in texts]
+        # to do - use text.category to pull 
+        df['CATEGORY'] = [getattr(text, text.category) for text in texts]
         df['DATE'] = [datetime.strptime(text.timestamp.strftime('%Y-%m'),'%Y-%m') for text in texts]
         if query == 'LD':
             df['DATA'] = [text.lexical_diversity for text in texts]
@@ -208,7 +211,7 @@ class Corpus(object):
         bar = Bar('Processing', max=len(self.filenames))
         for filename in self.filenames:
             try:
-                text_list.append(Text(filename, self.stopwords, self.metadata, self.query))
+                text_list.append(Text(filename, self.stopwords, self.metadata, self.query, self.category))
                 bar.next()
             except AttributeError:
                 with open('empty_files.txt', 'a') as fout:
@@ -224,9 +227,10 @@ class Corpus(object):
         return text_list
 
 class Text(object):
-    def __init__(self, fn, stopwords, metadata, query):
+    def __init__(self, fn, stopwords, metadata, query, category):
         # self.thing = something that gets you that thing
         self.filename = fn
+        self.category = category
         self.blog = self.filename.split('/')[1]
         # using the blog name, look at the metadata csv and grab the rest of the metadata
         self.post_metadata = metadata.loc[metadata['blog'] == self.blog]
@@ -438,5 +442,7 @@ if __name__ == "__main__":
 # TODO: Finish metadata
 # TODO: get all of the stuff and run it ALL on Brandon's laptop
 # test = analysis.Text('real-blogs/bripopsicle/posts/28782550789.html', nltk.corpus.stopwords.words('english'),pd.read_csv('test-metadata.csv'),'SB')
-# go through test.get_irreg_cap_paragraphs()  and check what is triggering spongebob. it might be the symbols?
-# todo - https://www.geeksforgeeks.org/python-split-camelcase-string-to-individual-strings/
+# TODO: go through test.get_irreg_cap_paragraphs()  and check what is triggering spongebob. it might be the symbols?
+# TODO:  - https://www.geeksforgeeks.org/python-split-camelcase-string-to-individual-strings/
+# TODO: make a way to group together similar categories if needed (mostly for sexuality)
+# TODO: Michelle is going to working on metedata more and make sure we don't need anything else. 

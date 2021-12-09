@@ -9,8 +9,6 @@ import re
 import matplotlib.pyplot as plt
 import traceback
 from datetime import datetime
-import cProfile
-import pstats
 import random
 from progress.bar import Bar
 from nltk.collocations import BigramCollocationFinder
@@ -19,31 +17,38 @@ import string
 
 class Corpus(object):
     def __init__(self):
-        # self.thing = something
-        self.clean_files()
-        # Query options are "SB" (spongebob), "LD" (lexical diversity), "any given word" (general search queries)
+        """Create a class to handle the whole corpus""""
+        # ========
+        # IMPORTANT FLAGS HERE
+        # Query options are "SB" (spongebob), "LD" (lexical diversity), "~", "DIALOGUE" "any given word" (general search queries)
         # Can also search collocations two ways - the first is to just pass "TC" to get a list of the top collocation for each file
         # Second is "CS: A Collocation" to search for a particular collocation
-        # IMPORTANT FLAGS HERE
         self.query = 'SB'
         self.category = 'absolutism'
-        # TODO: self.metadata_file = either metadata.csv or test-metadata.csv
+        # set test = True if you want to run over the controlled 'test-blogs' subfolder
+        test = False
+        # set sample = True if you want to run on the smaller test corpus
         sample = False
-        # self.combine_category = (False, category_name, how to merge it)
-        # set sample = False if you want to run on the smaller test corpus
-        if sample:
-            # uncomment next two lines for very specific testing on a controlled subfolder
+        # set sample size here, only used if sample is true
+        sample_size = 1000
+        self.clean_files()
+        # =========
+        if test:
+            # work on a smaller, test corpus
             self.corpus_dir = 'test-blogs/'
-            self.filenames = self.all_files()
-            # comment next three lines if testing on test-blogs
-            # self.corpus_dir = 'test-blogs'
-            # self.filenames = random.sample(self.all_files(),1000)
+            if sample:
+                # use a sample of the total test corpus
+                self.filenames = random.sample(self.all_files(),sample_size)
+            else:
+                self.filenames = self.all_files()            
+            # use the test metadata file
             self.metadata = pd.read_csv('test-metadata.csv')
         else:
             self.corpus_dir = 'real-blogs'
-            # self.filenames = self.all_files() 
-            # uncomment above and comment below to run on whole corpus
-            self.filenames = random.sample(self.all_files(),2500)
+            if sample:
+                self.filenames = random.sample(self.all_files(),sample_size)
+            else:
+                self.filenames = self.all_files()             
             self.metadata = pd.read_csv('metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.sort_by_date(self.create_texts())
@@ -59,28 +64,25 @@ class Corpus(object):
             self.category_frames = self.divide_into_categories(self.data_to_graph)
             # regularize each by month
             self.regularized_category_frames = [self.regularize_data_frame(df, self.query) for df in self.category_frames]
-            if self.combine and self.combine[0] == True:
-                # call to 
-                pass
             self.graph(self.regularized_category_frames)
             print('Complete! Be sure to check errors.txt for anything that might have quietly failed.')
-
-    def combine_category(self):
-        pass
-
+    
     def spongebob_tester(self):
+        """A specific function to be run in conjunction with the SpongeBob class while testing. After constructing a corpus, running corpus.spongebob_tester will print out the SpongeBob'd words to the terminal"""
         with open('filenames_by_query.txt','r') as filein:
             return [Text(fn.strip('\n'), self.stopwords, self.metadata,'SB', self.category).get_irreg_cap_tokens() for fn in filein.readlines()]
 
     def clean_files(self):
         """Cleans up past files by emptying them so they can get new content from this run."""
-        #TODO: check to see if these files exist
-        with open('errors.txt', 'r+') as fin:
-            fin.truncate(0)
-        with open('filenames_by_query.txt', 'r+') as fin:
-            fin.truncate(0)
-        with open('empty_files.txt', 'r+') as fin:
-            fin.truncate(0)
+        files = ['errors.txt', 'filenames_by_query.txt', 'empty_files.txt']
+        for fn in files:
+            if os.path.exists(fn):
+                with open(fn, 'r+') as fin:
+                    print('Cleaning out ' + fn)
+                    fin.truncate(0)
+            else:
+                with open(fn, 'w') as fin:
+                    print('Creating ' + fn)
 
 
     def divide_into_categories(self, df):
@@ -89,6 +91,7 @@ class Corpus(object):
         return [df[df.CATEGORY == this_category] for this_category in set(df.CATEGORY.values)]
 
     def get_filenames_by_query(self, query):
+        """Handles construction of the list of filenames that contain a particular query"""
         if query == 'SB':
             return [text.filename for text in self.texts if text.irreg_cap]
         elif query == '~':
@@ -106,6 +109,7 @@ class Corpus(object):
             return [text.filename for text in self.texts if text.freq_dist[query]]
 
     def export_filenames_by_query(self):
+        """Exports the list of filenames for a particular query"""
         with open('filenames_by_query.txt', 'w') as fout:
             for line in self.filenames_by_query:
                 fout.write(str(line) + '\n')
@@ -113,7 +117,7 @@ class Corpus(object):
     def graph(self, dataframes):
         """given a set of dataframes to graph, graph them"""
         plt.style.use('seaborn-whitegrid')
-        # should be five colors bc should be five categories
+        # should be a fixed number of metadata options/colors
         colors = {0:'b', 1: 'g', 2: 'r', 3: 'm', 4: 'y', 5: 'c', 6: 'k'}
         color_count = 0
         for dataframe in dataframes:
@@ -121,6 +125,7 @@ class Corpus(object):
             color_count += 1
         plt.legend()
         plt.xticks(rotation=90)
+        # plot title is set here
         if self.query == 'SB':
             query = 'SpongeBob Meme'
         if self.query == 'DIALOGUE':
@@ -133,6 +138,7 @@ class Corpus(object):
         plt.show()
 
     def get_data_over_time(self, texts, query):
+        """Handles the compilation and merging of data over time"""
         df = pd.DataFrame()
         df['CATEGORY'] = [getattr(text, text.category) for text in texts]
         df['DATE'] = [datetime.strptime(text.timestamp.strftime('%Y-%m'),'%Y-%m') for text in texts]
@@ -147,8 +153,6 @@ class Corpus(object):
             df['DATA'] = [text.collocation_freq_dist[proc_query] for text in texts]
         elif query == 'DIALOGUE':
             df['DATA'] = [text.contains_dialogue for text in texts]
-        # elif query == 'COLLOCATIONS':
-                # df['DATA'] = [text.collocations for text in corpus.texts]
         elif query:
             df['DATA'] = [text.freq_dist[query] for text in texts]
         else:
@@ -156,8 +160,7 @@ class Corpus(object):
         return df
 
     def regularize_data_frame(self, df, query):
-        # averages data per month - you'll want to make sure it separates out different blog types here
-        # we might want to add raw counts rather than averaging them sometimes
+        """averages data per month"""
         unique_dates = set(df.DATE.values)
         converted_df = pd.DataFrame()
         converted_df['DATE'] = [date for date in unique_dates]
@@ -168,10 +171,9 @@ class Corpus(object):
         else:
             converted_df['DATA'] = [df[df['DATE'] == date]['DATA'].sum() for date in unique_dates]
         return converted_df.sort_values(by=['DATE'])
-        # interested across time and across blogs
 
     def get_subset_by_metadata(self, key, value):
-        """sub_corpus = this_corpus.get_subset_by_metadata('blog','ghost')"""
+        """if you want to pull out a sub_corpus, you would run this sub_corpus = this_corpus.get_subset_by_metadata('blog','ghost')"""
         return [text for text in self.texts if getattr(text, key) == value]
 
     def find_text(self, fn):
@@ -179,16 +181,12 @@ class Corpus(object):
             if text.filename.split('/')[-1] == fn:
                 return text
 
-    def function_name(parameters_for_the_function):
-        print('the stuff here')
-        return none
-
     def sort_by_date(self, texts):
+        """Sorts blogs by date"""
         texts.sort(key=lambda x: x.timestamp)
         return texts
 
     def get_particular_blog(self, search_term):
-        # TODO - make sure this works when we have metadata
         return [text for text in self.texts if text.post_metadata['blog'] == search_term]
 
     def all_files(self):
@@ -204,6 +202,7 @@ class Corpus(object):
         return texts
 
     def create_texts(self):
+        """Handles creation of all instances of your text class"""
         text_list = []
         bar = Bar('Processing', max=len(self.filenames))
         for filename in self.filenames:
@@ -225,7 +224,6 @@ class Corpus(object):
 
 class Text(object):
     def __init__(self, fn, stopwords, metadata, query, category):
-        # self.thing = something that gets you that thing
         self.filename = fn
         self.category = category
         self.blog = self.filename.split('/')[1]
@@ -242,13 +240,8 @@ class Text(object):
             self.timestamp = datetime.strptime(self.soup.time.text,'%m/%d/%Y %H:%M:%S %p')
         else:
             self.timestamp = datetime.strptime(self.soup.time.text,'%m/%d/%Y %H:%M:%S')
-        # try:
-        #     self.timestamp = datetime.strptime(self.soup.time.text,'%m/%d/%Y %H:%M:%S %p')
-        # except ValueError:
-        #     # koreanqueer formats their timestamps differently for some reason
         self.p_tags = self.soup.find_all('p')
         self.text = ' '.join([tag.text for tag in self.p_tags])
-        # self.tokens = nltk.tokenize.WordPunctTokenizer().tokenize(self.text) # would be faster but break apart tilde words
         self.tokens = nltk.word_tokenize(self.text)
         self.cleaned_tokens = self.clean_tokens()
         self.freq_dist = nltk.FreqDist(self.tokens)
@@ -299,14 +292,7 @@ class Text(object):
         if self.freq_dist['\''] or self.freq_dist['\"'] or self.freq_dist[':'] or self.freq_dist['\'\'']:
             result = True
         return result
-        # old method for searching (regex needs work)
-        # search = r'\w+: \w+|\"\w+ \w+\"|\'\w+: \w+|\''
-        # p_result = []
-        # for p in self.p_tags:
-        #     if re.findall(search, p.text):
-        #         p_result.append(p.text)
-        #
-        #return p_result
+
 
     def count_tildes(self):
         beginning_tilde_counts = len([token for token in self.tokens if token.startswith('~')])
@@ -314,12 +300,6 @@ class Text(object):
         return (beginning_tilde_counts, end_tilde_counts)
 
     def tilde_true(self):
-        # TODO: maybe refactor by looking at the FreqDist instead of token by token. problem right now is
-        # that the tokenizer won't split on ~
-        # result = False
-        #     if self.freq_dist['~']:
-        #         result = True
-        # return result
         result = False
         for token in self.tokens:
             if '~' in token:
@@ -340,7 +320,6 @@ class Text(object):
         for token in self.tokens:
             if self.validate_irreg_caps(token):
                 p_results.append(token)
-            #  
         return p_results
 
     def validate_irreg_caps(self, token):
@@ -370,17 +349,28 @@ class Text(object):
 def main():
     # if i run the file from the terminal a la $ python3 analysis.py
     # this is what will run.
-    time_program()
+   corpus = Corpus()
 
 
 if __name__ == "__main__":
     main()
 
 
-
+# Your main flags that you'll be interested in tweaking are under the Corpus() class at the top. You might also want to modify these other areas:
+# validate_irreg_caps() function, under the Text class, where you can add other acronyms to ignore when looking for spongebob.
+#
+# After running the corpus, you might want to check three files:
+# 1. empty_files.txt - collects filenames for any post files that appear to be empty
+# 2. errors.txt - logs any errors that come up (especially useful if something appears to be quietly being weird)
+# 3. filenames_by_query - contains a running list of all files that are hits for your particular search query.
+# Note: for SpongeBob queries, in particular, you can also run corpus.spongebob_tester() to print out all the spongebob words to the screen
+# 
+# USAGE
+# To implement the class, you'll run this from the interpreter (or just run the file) 
 # $ python3
 # >>> import analysis
 # >>> corpus = analysis.Corpus()
+# it will automatically graph things for you after running, and you can close the graph to play with the corpus more.
 
 # if something messes up or you change something
 # >>> import importlib # only has to be done once
@@ -403,15 +393,20 @@ if __name__ == "__main__":
 # test = analysis.Text('real-blogs/bripopsicle/posts/28782550789.html', nltk.corpus.stopwords.words('english'),pd.read_csv('test-metadata.csv'),'SB', 'absolutism')
 #    (where the only thing you should need to modify above is the filename)
 
+# To run queries on an individual author, after making a corpus:
+# sub_corpus = this_corpus.get_subset_by_metadata('blog','ghost')
+# this would give you access to a new sub_corpus which you could run queries on (graphing these sub queries would take a little work. Your best bet might be to make a new corpus folder for a single author (or a few) instead)
+
 # Essential
 # TODO: Document the places you might especially want to make changes (brandon will do)
+# TODO: check to see if the three necessary files exist at line 72
 # TODO: Michelle is going to working on metadata more and make sure we don't need anything else. 
 # TODO: when metadata is done, move everything to Jackie's cloud (last)
 
 
 
 # Stretch 
-# HOLD: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
+# HOLD: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?gs
 # HOLD: reading for particular styles - reading for youth voices, innocent youth, old person standard English, academic. intermingling the different registers within a single post
 # HOLD: Create better collocation that searches without looking at categories collapses all authors for a week or month together
 # Hold: Troubleshoot "math domain error" in real-blogs/achtervulgan315/posts/178376711031.html and similar files - https://github.com/nltk/nltk/issues/2200 

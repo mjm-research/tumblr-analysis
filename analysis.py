@@ -17,15 +17,6 @@ from nltk.collocations import BigramCollocationFinder
 from nltk.metrics import BigramAssocMeasures
 import string
 
-def time_program():
-    prof = cProfile.Profile()
-    prof.run('Corpus()')
-    prof.dump_stats('output.prof')
-    stream = open('output.txt','w')
-    p = pstats.Stats('output.prof', stream=stream).sort_stats('cumtime')
-    p.sort_stats('cumtime')
-    p.print_stats()
-
 class Corpus(object):
     def __init__(self):
         # self.thing = something
@@ -33,52 +24,53 @@ class Corpus(object):
         # Query options are "SB" (spongebob), "LD" (lexical diversity), "any given word" (general search queries)
         # Can also search collocations two ways - the first is to just pass "TC" to get a list of the top collocation for each file
         # Second is "CS: A Collocation" to search for a particular collocation
-        self.query = 'a'
-        self.category = 'politics'
-        # set test = False if you want to run on the smaller corpus
+        # IMPORTANT FLAGS HERE
+        self.query = 'SB'
+        self.category = 'absolutism'
+        # TODO: self.metadata_file = either metadata.csv or test-metadata.csv
         sample = False
+        # self.combine_category = (False, category_name, how to merge it)
+        # set sample = False if you want to run on the smaller test corpus
         if sample:
             # uncomment next two lines for very specific testing on a controlled subfolder
-            # self.corpus_dir = 'test-blogs/'
-            # self.filenames = self.all_files()
+            self.corpus_dir = 'test-blogs/'
+            self.filenames = self.all_files()
             # comment next three lines if testing on test-blogs
-            self.corpus_dir = 'real-blogs'
-            self.filenames = random.sample(self.all_files(),1000)
+            # self.corpus_dir = 'test-blogs'
+            # self.filenames = random.sample(self.all_files(),1000)
             self.metadata = pd.read_csv('test-metadata.csv')
         else:
             self.corpus_dir = 'real-blogs'
             # self.filenames = self.all_files() 
             # uncomment above and comment below to run on whole corpus
-            self.filenames = random.sample(self.all_files(),1000)
+            self.filenames = random.sample(self.all_files(),2500)
             self.metadata = pd.read_csv('metadata.csv')
         self.stopwords = nltk.corpus.stopwords.words('english')
         self.texts = self.sort_by_date(self.create_texts())
         # data_to_graph can take a general search term (in which case it adds the raw word counts, though we could make it average) or one of these specialized requests: ['LD', 'SB']
         # gets the raw data to graph
-        if not self.query == 'TM':
-            self.filenames_by_query = self.get_filenames_by_query(self.query)
-            self.export_filenames_by_query()
-        if self.query == "TC":
+        self.filenames_by_query = self.get_filenames_by_query(self.query)
+        self.export_filenames_by_query()
+        if self.query == 'TC':
             pass
-        elif self.query == 'TM':
-            pass
-            # topic modeling unimplemented for now
-            # data_words = [text.cleaned_tokens for text in self.texts]
-            # id2word = corpora.Dictionary(data_words)
-            # corpus = [id2word.doc2bow(text) for text in corpus.texts]
         else:
             self.data_to_graph = self.get_data_over_time(self.texts, self.query)
-            # organize it into a set of five dataframes, one for each category
+            # organize it into a set of dataframes, one for each category in the metadata sheet
             self.category_frames = self.divide_into_categories(self.data_to_graph)
             # regularize each by month
             self.regularized_category_frames = [self.regularize_data_frame(df, self.query) for df in self.category_frames]
+            if self.combine and self.combine[0] == True:
+                # call to 
+                pass
             self.graph(self.regularized_category_frames)
+            print('Complete! Be sure to check errors.txt for anything that might have quietly failed.')
+
+    def combine_category(self):
+        pass
 
     def spongebob_tester(self):
         with open('filenames_by_query.txt','r') as filein:
-            files = filein.readlines()
-        for fn in files:
-            print(Text(fn.strip('\n'), self.stopwords, self.metadata,'SB').get_irreg_cap_paragraphs())
+            return [Text(fn.strip('\n'), self.stopwords, self.metadata,'SB', self.category).get_irreg_cap_tokens() for fn in filein.readlines()]
 
     def clean_files(self):
         """Cleans up past files by emptying them so they can get new content from this run."""
@@ -89,10 +81,7 @@ class Corpus(object):
             fin.truncate(0)
         with open('empty_files.txt', 'r+') as fin:
             fin.truncate(0)
-        with open('output.txt', 'r+') as fin:
-            fin.truncate(0)
-        with open('output.prof', 'r+') as fin:
-            fin.truncate(0)
+
 
     def divide_into_categories(self, df):
         """takes a single dataframe, tagged for categories, and divides into separate dataframes based on each type"""
@@ -132,11 +121,19 @@ class Corpus(object):
             color_count += 1
         plt.legend()
         plt.xticks(rotation=90)
+        if self.query == 'SB':
+            query = 'SpongeBob Meme'
+        if self.query == 'DIALOGUE':
+            query = 'Dialogue'
+        if self.query == '~':
+            query = 'Q' 
+        else:
+            query = self.query
+        plt.title('Searching for ' + query + ' by ' + self.category)
         plt.show()
 
     def get_data_over_time(self, texts, query):
         df = pd.DataFrame()
-        # to do - use text.category to pull 
         df['CATEGORY'] = [getattr(text, text.category) for text in texts]
         df['DATE'] = [datetime.strptime(text.timestamp.strftime('%Y-%m'),'%Y-%m') for text in texts]
         if query == 'LD':
@@ -265,7 +262,7 @@ class Text(object):
         elif query == 'SB':
             self.irreg_cap = self.find_irreg_cap()
             if self.irreg_cap:
-                self.irreg_cap_paragraphs = self.get_irreg_cap_paragraphs()
+                self.irreg_cap_tokens = self.get_irreg_cap_tokens()
         elif query == 'DIALOGUE':
             self.contains_dialogue = self.find_dialogue()
         elif query == 'COLLOCATIONS' or query == 'TC' or query.startswith('CS:'):
@@ -275,8 +272,6 @@ class Text(object):
                 self.top_collocation_count = self.collocation_freq_dist[self.most_common_collocation[0]]
             else:
                 self.top_collocation_count = 0
-        # elif query == 'TM':
-        #     id2word = corpora.Dictionary(self.cleaned_tokens)
         elif query == 'MISC':
             """gathers a bunch of miscellaneous attributes that we might want to have access to but are not actively used rn.
             will want to pull them out into a particular query to activate them"""
@@ -288,8 +283,6 @@ class Text(object):
         """finds collocations"""
         bcf = BigramCollocationFinder.from_words(self.cleaned_tokens)
         return bcf.nbest(BigramAssocMeasures.likelihood_ratio, 1)
-        # example of how to use the filter function:
-        # self.paras_starting_with_cap_a = self.get_paragraphs_with_filter("token[0] == 'A'")
 
     def clean_tokens(self):
         """cleans tokens according to the parameters we want. this is where you'll want to adjust it if it's too aggressive"""
@@ -337,18 +330,21 @@ class Text(object):
     def find_irreg_cap(self):
         result = False
         for token in self.tokens:
-            if len(token) > 1 and not token[1:].isupper() and not token[1:].islower() and token not in ['AM', 'PM', '●', '¶'] and not re.match('[0-9]{1,4}/[0-9]{1,2}/[0-9]{1,2}|[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}|[0-9]+', token) and not any(not c.isalnum() for c in token):
+            if self.validate_irreg_caps(token):
                 result = True
                 break
         return result
 
-    def get_irreg_cap_paragraphs(self):
+    def get_irreg_cap_tokens(self):
         p_results = []
-        for p in self.p_tags:
-            for token in nltk.word_tokenize(p.text):
-                if len(token) > 1 and not token[1:].isupper() and not token[1:].islower() and token not in ['AM', 'PM', '●', '¶'] and not re.match('[0-9]{1,4}/[0-9]{1,2}/[0-9]{1,2}|[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}|[0-9]+', token) and not any(not c.isalnum() for c in token):
-                    p_results.append(token)
+        for token in self.tokens:
+            if self.validate_irreg_caps(token):
+                p_results.append(token)
+            #  
         return p_results
+
+    def validate_irreg_caps(self, token):
+        return len(token) > 1 and not token.isupper() and not token[1:].islower() and not re.match('[0-9]{1,4}\/[0-9]{1,2}\/[0-9]{1,2}|[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}|[0-9]+', token) and not any(not c.isalnum() for c in token) and token not in nltk.corpus.names.words() and self.count_percentage_of_caps(token) > 0.3 and token not in ['TERFs', 'IDs', 'MP3s', 'PayPal', 'PoC', 'PCs', 'NPCs']
 
     def common_ngrams(self, n):
         """take a text and get the most common phrases of length n. for example, text.collocations(3) gives you most common phrases 3 words long"""
@@ -365,6 +361,10 @@ class Text(object):
     def get_the_text(self):
         with open(self.filename, 'r') as file_in:
             return file_in.read()
+    
+    def count_percentage_of_caps(self, word):
+        result = sum(1 for c in word if c.isupper())/len(word)
+        return result
 
 
 def main():
@@ -396,53 +396,23 @@ if __name__ == "__main__":
 # ...             print(text.time_as_string)
 
 
-#   (to pull out just a test file in python)
+#   (to pull out just a single file in python)
 # import analysis
-# this_corpus = analysis.Corpus()
-# test_corpus = this_corpus.get_subset_by_metadata('blog','test')
+# import nltk
+# import pandas as pd
+# test = analysis.Text('real-blogs/bripopsicle/posts/28782550789.html', nltk.corpus.stopwords.words('english'),pd.read_csv('test-metadata.csv'),'SB', 'absolutism')
+#    (where the only thing you should need to modify above is the filename)
 
 # Essential
-# TODO: Create better collocation that searches without looking at categories collapses all authors for a week or month together
-# TODO: look for a bigram over the whole blog corpus
-# TODO: Get the other blog materials
-# TODO: Refactor to be more clearly usable by Michelle
-# TODO: Troubleshoot "math domain error" in real-blogs/achtervulgan315/posts/178376711031.html and similar files - https://github.com/nltk/nltk/issues/2200 Full stack trace below
-# I would pull in just that file and test but i think it's not a big deal
+# TODO: Document the places you might especially want to make changes (brandon will do)
+# TODO: Michelle is going to working on metadata more and make sure we don't need anything else. 
+# TODO: when metadata is done, move everything to Jackie's cloud (last)
 
-# Stretch / Maybe
+
+
+# Stretch 
 # HOLD: novel proper nouns - writing that looks like: he is a Good Dog. Named Entity Recognition -> frequency counts?
 # HOLD: reading for particular styles - reading for youth voices, innocent youth, old person standard English, academic. intermingling the different registers within a single post
+# HOLD: Create better collocation that searches without looking at categories collapses all authors for a week or month together
+# Hold: Troubleshoot "math domain error" in real-blogs/achtervulgan315/posts/178376711031.html and similar files - https://github.com/nltk/nltk/issues/2200 
 
-
-# Failed on real-blogs/achtervulgan315/posts/178376711031.html
-# Traceback (most recent call last):
-#   File "/Users/bmw9t/projects/tumblr-analysis/analysis.py", line 197, in create_texts
-#     text_list.append(Text(filename, self.stopwords, self.metadata, self.query))
-#   File "/Users/bmw9t/projects/tumblr-analysis/analysis.py", line 255, in __init__
-#     self.most_common_collocation = self.find_collocations()
-#   File "/Users/bmw9t/projects/tumblr-analysis/analysis.py", line 271, in find_collocations
-#     return bcf.nbest(BigramAssocMeasures.likelihood_ratio, 1)
-#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/collocations.py", line 138, in nbest
-#     return [p for p, s in self.score_ngrams(score_fn)[:n]]
-#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/collocations.py", line 134, in score_ngrams
-#     return sorted(self._score_ngrams(score_fn), key=lambda t: (-t[1], t[0]))
-#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/collocations.py", line 126, in _score_ngrams
-#     score = self.score_ngram(score_fn, *tup)
-#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/collocations.py", line 199, in score_ngram
-#     return score_fn(n_ii, (n_ix, n_xi), n_all)
-#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/metrics/association.py", line 148, in likelihood_ratio
-#     return 2 * sum(
-#   File "/Users/bmw9t/Library/Python/3.8/lib/python/site-packages/nltk/metrics/association.py", line 149, in <genexpr>
-#     obs * _ln(obs / (exp + _SMALL) + _SMALL)
-# ValueError: math domain error
-
-# TODO: can we move away to other metadata categories (we should be able to do so)
-# TODO next time - work on fixing spongebob
-# TODO to trouble shoot
-# TODO: Finish metadata
-# TODO: get all of the stuff and run it ALL on Brandon's laptop
-# test = analysis.Text('real-blogs/bripopsicle/posts/28782550789.html', nltk.corpus.stopwords.words('english'),pd.read_csv('test-metadata.csv'),'SB')
-# TODO: go through test.get_irreg_cap_paragraphs()  and check what is triggering spongebob. it might be the symbols?
-# TODO:  - https://www.geeksforgeeks.org/python-split-camelcase-string-to-individual-strings/
-# TODO: make a way to group together similar categories if needed (mostly for sexuality)
-# TODO: Michelle is going to working on metedata more and make sure we don't need anything else. 

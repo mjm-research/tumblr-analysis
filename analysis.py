@@ -17,7 +17,7 @@ import string
 
 class Corpus(object):
     def __init__(self):
-        """Create a class to handle the whole corpus""""
+        """Create a class to handle the whole corpus"""
         # ========
         # IMPORTANT FLAGS HERE
         # Query options are "SB" (spongebob), "LD" (lexical diversity), "~", "DIALOGUE" "any given word" (general search queries)
